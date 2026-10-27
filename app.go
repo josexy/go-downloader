@@ -211,14 +211,17 @@ func (a *app) start() {
 	}
 	a.deps.applyTheme(a.s.Theme)
 	a.win = mygo.NewWindow(mygo.WindowOptions{
-		Title:           "下载器",
-		Width:           1200,
-		Height:          800,
-		MinWidth:        960,
-		MinHeight:       640,
-		StateKey:        "main",
-		BackgroundColor: "light-dark(#F4F6FA, #151B26)",
-		Content:         ui.View(a.view),
+		Title:             "下载器",
+		Width:             1200,
+		Height:            800,
+		MinWidth:          960,
+		MinHeight:         640,
+		StateKey:          "main",
+		TitleBarStyle:     mygo.TitleBarHidden,
+		TitleBarHeight:    titleBarHeight,
+		HideWindowButtons: true,
+		BackgroundColor:   "light-dark(#F4F6FA, #151B26)",
+		Content:           ui.View(a.view),
 	})
 	a.engine.SetOnChange(a.onEngineChange)
 	a.engine.SetOnComplete(a.onEngineComplete)

@@ -66,6 +66,33 @@ func TestSnapshots(t *testing.T) {
 	tt.Frame()
 	save("dark-list.png", tt)
 
+	// Review compact caption controls at rest and under the pointer in both
+	// themes, including their actual size at 125% display scaling.
+	caption := ui.NewTester(func(c *ui.Context) {
+		a.palette = paletteFor(c.Theme().Dark)
+		c.SetTheme(a.palette.theme())
+		a.header(c, a.summary)
+	}, 1240, titleBarHeight)
+	caption.SetLocale("zh-Hans")
+	caption.SetScale(1.25)
+	for _, dark := range []bool{false, true} {
+		name := "light"
+		if dark {
+			name = "dark"
+		}
+		caption.SetDark(dark)
+		for _, button := range []struct{ label, name string }{
+			{"最大化窗口", "maximize"}, {"关闭窗口", "close"},
+		} {
+			r, ok := caption.Find(button.label)
+			if !ok {
+				t.Fatalf("missing caption control %s", button.label)
+			}
+			caption.Move(r.X+r.W/2, r.Y+r.H/2)
+			save(name+"-titlebar-"+button.name+"-hover.png", caption)
+		}
+	}
+
 	a.input = "https://example.com/file.zip"
 	a.selection.Add("d1")
 	tt.Frame()

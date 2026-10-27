@@ -8,11 +8,20 @@ func svgIcon(shapes string) *ui.SVG {
 	return ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">` + shapes + `</svg>`))
 }
 
+// windowIcon keeps caption glyphs balanced on a smaller, finer stroke grid.
+func windowIcon(shapes string) *ui.SVG {
+	return ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round">` + shapes + `</svg>`))
+}
+
 var (
 	icoDownload   = svgIcon(`<path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/>`)
 	icoPlay       = svgIcon(`<path d="M7 4.5v15l13-7.5z"/>`)
 	icoPause      = svgIcon(`<path d="M8.5 5v14"/><path d="M15.5 5v14"/>`)
 	icoX          = svgIcon(`<path d="m6 6 12 12"/><path d="m18 6-12 12"/>`)
+	icoMinimize   = windowIcon(`<path d="M3.5 8.5h9"/>`)
+	icoMaximize   = windowIcon(`<rect x="3.5" y="3.5" width="9" height="9" rx="1"/>`)
+	icoRestore    = windowIcon(`<path d="M5.5 2.5h7a1 1 0 0 1 1 1v7"/><rect x="2.5" y="5.5" width="8" height="8" rx="1"/>`)
+	icoWindowX    = windowIcon(`<path d="m4 4 8 8m0-8-8 8"/>`)
 	icoRefresh    = svgIcon(`<path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/>`)
 	icoFolder     = svgIcon(`<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>`)
 	icoFolderPlus = svgIcon(`<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M12 11v6"/><path d="M9 14h6"/>`)

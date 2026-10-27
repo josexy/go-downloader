@@ -65,28 +65,36 @@ func (a *app) shortcuts(c *ui.Context) {
 	}
 }
 
-// header is the app's top bar.
+// header is the custom title bar. Interactive children take their own input;
+// the remaining area drags the window and handles title-bar double clicks.
 func (a *app) header(c *ui.Context, summary download.Summary) {
 	p := a.palette
-	ui.Row(c).Height(72).FillWidth().Padding(0, 24).Gap(12).AlignItems(ui.Center).Background(p.Card).Children(func() {
-		logo := ui.Box(c).Size(36, 36).Radius(10).Background(p.Accent)
-		logo.Center()
-		logo.Children(func() {
-			ui.Icon(c, icoDownload).FontSize(18).TextColor(p.OnAccent)
+	ui.Row(c).Height(titleBarHeight).FillWidth().Background(p.Card).DragWindow().Children(func() {
+		ui.Row(c).Grow(1).Padding(0, 20).Gap(12).AlignItems(ui.Center).Children(func() {
+			logo := ui.Box(c).Size(36, 36).Radius(10).Background(p.Accent)
+			logo.Center()
+			logo.Children(func() {
+				ui.Icon(c, icoDownload).FontSize(18).TextColor(p.OnAccent)
+			})
+			ui.Column(c).Gap(3).Children(func() {
+				ui.Text(c, "下载器").FontSize(17).Bold()
+				ui.Text(c, headerSubtitle(summary)).FontSize(12).TextColor(p.Muted)
+			})
+			ui.Spacer(c)
+			search := ui.SearchField(c, &a.query).Width(220).FontSize(13).
+				Background(p.Canvas).Label("搜索下载").Placeholder("搜索文件名或链接")
+			if a.focusSearch {
+				search.Focus()
+				a.focusSearch = false
+			}
+			a.themeSwitch(c)
+			iconButton(c, p, "设置", icoSettings, false, func() { a.openSettings(0) })
 		})
-		ui.Column(c).Gap(3).Children(func() {
-			ui.Text(c, "下载器").FontSize(17).Bold()
-			ui.Text(c, headerSubtitle(summary)).FontSize(12).TextColor(p.Muted)
-		})
-		ui.Spacer(c)
-		search := ui.SearchField(c, &a.query).Width(236).FontSize(13).
-			Background(p.Canvas).Label("搜索下载").Placeholder("搜索文件名或链接")
-		if a.focusSearch {
-			search.Focus()
-			a.focusSearch = false
+		var window titleBarWindow
+		if a.win != nil {
+			window = a.win
 		}
-		a.themeSwitch(c)
-		iconButton(c, p, "设置", icoSettings, false, func() { a.openSettings(0) })
+		windowButtons(c, p, window)
 	})
 }
 
