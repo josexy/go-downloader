@@ -3,7 +3,10 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -199,6 +202,8 @@ func (f *fakeEngine) SetAutoStart(on bool) {
 	f.record(fmt.Sprintf("SetAutoStart:%v", on))
 }
 
+func (f *fakeEngine) RefreshFiles() {}
+
 func (f *fakeEngine) Snapshot() ([]download.Item, download.Summary) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -381,6 +386,63 @@ func TestEmptyState(t *testing.T) {
 	}
 	if !tt.HasText("从剪贴板粘贴") {
 		t.Error("the empty state has no paste button")
+	}
+}
+
+func TestMissingFileRefreshesAndDownloadsAgain(t *testing.T) {
+	a := newTestApp(t, &fakeEngine{})
+	path := filepath.Join(a.s.DownloadDir, "refreshed.bin")
+	if err := os.WriteFile(path, []byte("original"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "recovered")
+	}))
+	defer srv.Close()
+	engine := download.New(download.Options{Dir: a.s.DownloadDir})
+	engine.Restore([]download.Record{{ID: "refresh", URL: srv.URL + "/refreshed.bin", Path: path, State: download.StateCompleted}})
+	engine.SetOnChange(a.onEngineChange)
+	a.engine = engine
+	a.startSaver()
+	t.Cleanup(a.shutdown)
+	tt := testerFor(a)
+	if tt.HasText("文件缺失") {
+		t.Fatal("an existing file is marked missing")
+	}
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	waitFor := func(wantMissing bool) {
+		t.Helper()
+		deadline := time.Now().Add(5 * time.Second)
+		for {
+			items, _ := engine.Snapshot()
+			if items[0].State == download.StateCompleted && items[0].Missing == wantMissing {
+				return
+			}
+			if time.Now().After(deadline) {
+				t.Fatalf("file refresh did not reach missing=%v: %+v", wantMissing, items)
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+	waitFor(true)
+	tt.Frame()
+	tt.Frame()
+	if !tt.HasText("文件缺失") {
+		t.Fatalf("the view did not update after background refresh: %q", tt.Texts())
+	}
+	if err := tt.Click("重新下载 refreshed.bin"); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(false)
+	tt.Frame()
+	tt.Frame()
+	if tt.HasText("文件缺失") {
+		t.Fatal("the recovered file is still marked missing")
+	}
+	if got, err := os.ReadFile(path); err != nil || string(got) != "recovered" {
+		t.Fatalf("re-downloaded file = %q, %v", got, err)
 	}
 }
 

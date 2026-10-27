@@ -365,7 +365,7 @@ func NewTransport(c Config, sys *System) (*http.Transport, error) {
 	case ModeManual:
 		ep := Endpoint{Kind: c.Kind, Host: c.Host, Port: c.Port, Username: c.Username, Password: c.Password}
 		if c.Kind == KindSOCKS5 {
-			return transportWithSOCKS(tr, ep, dialer)
+			return transportWithSOCKS(tr, ep, dialer, c.Bypass)
 		}
 		tr.Proxy = proxyFunc(&ep, &ep, c.Bypass)
 		return tr, nil
@@ -377,14 +377,14 @@ func NewTransport(c Config, sys *System) (*http.Transport, error) {
 		case sys.HTTP != nil || sys.HTTPS != nil:
 			tr.Proxy = proxyFunc(sys.HTTP, sys.HTTPS, sys.Bypass)
 		case sys.SOCKS != nil:
-			return transportWithSOCKS(tr, *sys.SOCKS, dialer)
+			return transportWithSOCKS(tr, *sys.SOCKS, dialer, sys.Bypass)
 		}
 		return tr, nil
 	}
 	return nil, fmt.Errorf("未知的代理模式 %q", c.Mode)
 }
 
-func transportWithSOCKS(tr *http.Transport, ep Endpoint, dialer *net.Dialer) (*http.Transport, error) {
+func transportWithSOCKS(tr *http.Transport, ep Endpoint, dialer *net.Dialer, bypass string) (*http.Transport, error) {
 	var auth *xproxy.Auth
 	if ep.Username != "" {
 		auth = &xproxy.Auth{User: ep.Username, Password: ep.Password}
@@ -394,12 +394,15 @@ func transportWithSOCKS(tr *http.Transport, ep Endpoint, dialer *net.Dialer) (*h
 	if err != nil {
 		return nil, fmt.Errorf("无法使用 SOCKS5 代理: %w", err)
 	}
-	if cd, ok := pd.(xproxy.ContextDialer); ok {
-		tr.DialContext = cd.DialContext
-	} else {
-		tr.DialContext = func(ctx context.Context, network, address string) (net.Conn, error) {
-			return pd.Dial(network, address)
+	cd, ok := pd.(xproxy.ContextDialer)
+	if !ok {
+		return nil, fmt.Errorf("SOCKS5 代理不支持可取消的连接")
+	}
+	tr.DialContext = func(ctx context.Context, network, address string) (net.Conn, error) {
+		if MatchesBypass(address, bypass) {
+			return dialer.DialContext(ctx, network, address)
 		}
+		return cd.DialContext(ctx, network, address)
 	}
 	return tr, nil
 }
@@ -409,7 +412,14 @@ func proxyFunc(httpEP, httpsEP *Endpoint, bypass string) func(*http.Request) (*u
 		if req.URL == nil {
 			return nil, nil
 		}
-		if MatchesBypass(req.URL.Hostname(), bypass) {
+		port := req.URL.Port()
+		if port == "" {
+			port = "80"
+			if req.URL.Scheme == "https" {
+				port = "443"
+			}
+		}
+		if MatchesBypass(net.JoinHostPort(req.URL.Hostname(), port), bypass) {
 			return nil, nil
 		}
 		ep := httpEP
@@ -463,12 +473,16 @@ func Check(ctx context.Context, c Config, sys *System, target string) (time.Dura
 	return elapsed, nil
 }
 
-// MatchesBypass reports whether host is in the bypass list.
+// MatchesBypass reports whether host (optionally host:port) is in the bypass
+// list. A rule with a port matches only a target with that same port.
 func MatchesBypass(host, bypass string) bool {
 	host = strings.ToLower(strings.TrimSpace(host))
-	if h, _, err := net.SplitHostPort(host); err == nil {
+	port := ""
+	if h, p, err := net.SplitHostPort(host); err == nil {
 		host = h
+		port = p
 	}
+	host = strings.Trim(host, "[]")
 	if host == "" || strings.TrimSpace(bypass) == "" {
 		return false
 	}
@@ -479,15 +493,6 @@ func MatchesBypass(host, bypass string) bool {
 	for _, raw := range entries {
 		entry := strings.ToLower(strings.TrimSpace(raw))
 		if entry == "" {
-			continue
-		}
-		if entry == "*" {
-			return true
-		}
-		if entry == "<local>" {
-			if hostIP == nil && !strings.Contains(host, ".") {
-				return true
-			}
 			continue
 		}
 		if i := strings.Index(entry, "://"); i >= 0 {
@@ -502,8 +507,27 @@ func MatchesBypass(host, bypass string) bool {
 		if i := strings.Index(entry, "/"); i >= 0 {
 			entry = entry[:i]
 		}
-		if h, _, err := net.SplitHostPort(entry); err == nil {
+		if h, p, err := net.SplitHostPort(entry); err == nil {
+			if port != p {
+				continue
+			}
 			entry = h
+		}
+		entry = strings.Trim(entry, "[]")
+		if entry == "*" {
+			return true
+		}
+		if entry == "<local>" {
+			if hostIP == nil && !strings.Contains(host, ".") {
+				return true
+			}
+			continue
+		}
+		if ip := net.ParseIP(entry); ip != nil {
+			if hostIP != nil && hostIP.Equal(ip) {
+				return true
+			}
+			continue
 		}
 		entry = strings.TrimPrefix(entry, ".")
 		entry = strings.TrimPrefix(entry, "*.")

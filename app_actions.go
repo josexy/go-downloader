@@ -99,6 +99,7 @@ func (a *app) openItem(it download.Item) {
 	}
 	if err := a.deps.openPath(it.Path); err != nil {
 		a.toast("无法打开文件：" + err.Error())
+		a.deps.async(a.engine.RefreshFiles)
 	}
 }
 

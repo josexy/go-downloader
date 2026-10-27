@@ -9,9 +9,10 @@ import (
 // toolbar is the row above the downloads: counts, selection actions, sorting
 // and the list/grid switch.
 func (a *app) toolbar(c *ui.Context, summary download.Summary) {
-	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+	p := a.palette
+	ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
 		if a.selection.Len() > 0 {
-			ui.Textf(c, "已选 %d 项", a.selection.Len()).FontSize(12).Bold().Grow(1)
+			ui.Textf(c, "已选 %d 项", a.selection.Len()).FontSize(16).Bold().Grow(1).TextColor(p.Accent)
 			if smallButton(c, "暂停").Clicked() {
 				a.pauseSelected()
 			}
@@ -22,7 +23,8 @@ func (a *app) toolbar(c *ui.Context, summary download.Summary) {
 				a.requestRemove(a.selectedIDs())
 			}
 		} else {
-			ui.Textf(c, "共 %d 项", len(a.visible)).FontSize(12).Bold().Grow(1)
+			ui.Text(c, a.downloadsTitle()).FontSize(18).Bold()
+			ui.Textf(c, "%d 项", len(a.visible)).FontSize(12).TextColor(p.Muted).Grow(1)
 			if summary.Active > 0 {
 				if smallButton(c, "全部暂停").Clicked() {
 					a.engine.PauseAll()
@@ -38,11 +40,29 @@ func (a *app) toolbar(c *ui.Context, summary download.Summary) {
 				}
 			}
 		}
-		if ui.Select(c, &a.sortLabel, sortLabels).Width(112).Label("排序").Changed() {
+		if ui.Select(c.Key("sort"), &a.sortLabel, sortLabels).Width(116).FontSize(13).Label("排序").Changed() {
 			a.setSort(sortKeyFor(a.sortLabel))
 		}
 		a.viewSwitch(c)
 	})
+}
+
+func (a *app) downloadsTitle() string {
+	if a.query != "" {
+		return "搜索结果"
+	}
+	switch a.filter {
+	case filterActive:
+		return "正在下载"
+	case filterPaused:
+		return "已暂停"
+	case filterCompleted:
+		return "已完成"
+	case filterFailed:
+		return "失败的下载"
+	default:
+		return "全部下载"
+	}
 }
 
 // viewSwitch chooses the list or the cards.
@@ -56,74 +76,53 @@ func (a *app) rows(c *ui.Context) {
 	a.list.Key = func(i int) any { return a.visible[i].ID }
 	a.list.Label = func(i int) string { return a.visible[i].FileName }
 	a.list.Selection = &a.selection
-	ui.List(c, &a.list, len(a.visible)).Grow(1).Gap(8).Padding(0, 0, 6, 0).
+	ui.List(c, &a.list, len(a.visible)).Grow(1).Gap(0).
+		Radius(12).Background(a.palette.Card).Border(1, a.palette.Border).Clip().
 		Rows(func(row ui.ListRow) {
 			a.row(row.Context, a.visible[row.Index], row.Selected())
 		})
 }
 
-// row is one download in the list. A chosen row is covered with the
-// selection color, and its contents turn over to the selection's text color.
+// row keeps status and file-type colors intact when selected.
 func (a *app) row(c *ui.Context, it download.Item, selected bool) {
 	p := a.palette
-	row := ui.Row(c).Height(84).FillWidth().Padding(12, 14).Gap(12).Radius(12).
-		Background(p.Card).Border(1, p.Border).AlignItems(ui.Center).Cursor(ui.CursorPointer)
-	if !p.Dark && !selected {
-		row.Shadow(0, 1, 2, 0, p.Shadow)
-	}
+	row := ui.Row(c).Height(88).FillWidth().Padding(14, 18).Gap(14).
+		Background(p.Card).BorderWidth(0, 0, 1, 0).BorderColor(p.Divider).
+		TextColor(p.Text).AlignItems(ui.Center).Cursor(ui.CursorPointer)
 	if row.Hovered() && !selected {
 		row.Background(p.CardHover)
 	}
 	if selected {
-		// Paint over the list's own accent fill: the dark theme's accent
-		// is too bright to fill a whole row.
-		row.Background(p.SelectionFill).Border(1, tint(p.SelectionText, 0.22))
+		row.Background(p.SelectionFill).BorderWidth(0, 0, 1, 3).BorderColor(p.AccentBorder)
 	}
 	row.ContextMenu(func(m *ui.Menu) { a.itemMenu(c, m, it) })
 	row.Children(func() {
 		label, fg, bg := fileKind(it.FileName, p.Dark)
-		if selected {
-			// Turn the type tile over, as the row is painted in the
-			// selection color.
-			fg, bg = p.SelectionFill, p.SelectionText
-		}
-		tile := ui.Box(c).Size(42, 42).Radius(12).Background(bg).Center()
+		tile := ui.Box(c).Size(42, 42).Radius(10).Background(bg).Center()
 		tile.Children(func() {
 			ui.Text(c, label).FontSize(10).Bold().TextColor(fg)
 		})
 
-		nameColor := p.Text
-		subColor := p.Muted
-		if selected {
-			nameColor = p.SelectionText
-			subColor = tint(p.SelectionText, 0.72)
-		}
-
-		ui.Column(c).Grow(1).Gap(4).Children(func() {
+		ui.Column(c).Grow(1).Gap(7).Children(func() {
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-				name := ui.Text(c, it.FileName).FontSize(13).Bold().SingleLine().
-					Grow(1).TextColor(nameColor)
+				name := ui.Text(c, it.FileName).FontSize(14).FontWeight(600).SingleLine().Grow(1)
 				name.Tooltip(it.Path)
 				if name.RowDoubleClicked() {
 					a.primaryAction(it)
 				}
-				statusBadge(c, p, it, selected)
+				statusBadge(c, p, it)
 			})
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-				progressBar(c, p, it, selected)
+				progressBar(c, p, it)
 				if percent := formatPercent(it.Done, it.Total); percent != "" {
-					ui.Text(c, percent).FontSize(10).TextColor(subColor).
-						FontFeatures("tnum").Width(38).TextAlign(ui.End)
+					ui.Text(c, percent).FontSize(11).TextColor(p.Muted).
+						FontFeatures("tnum").Width(40).TextAlign(ui.End)
 				}
 			})
 			detail := detailLine(it, a.now)
-			line := ui.Text(c, detail).FontSize(10).SingleLine().TextColor(subColor)
+			line := ui.Text(c, detail).FontSize(12).SingleLine().TextColor(p.Muted)
 			if it.State == download.StateFailed || it.Attempt > 0 {
-				if selected {
-					line.TextColor(p.SelectionText)
-				} else {
-					line.TextColor(p.Danger)
-				}
+				line.TextColor(p.Danger)
 			}
 			if it.Error != "" {
 				line.Tooltip(it.Error)
@@ -131,21 +130,21 @@ func (a *app) row(c *ui.Context, it download.Item, selected bool) {
 		})
 
 		ui.Row(c).Gap(2).AlignItems(ui.Center).Children(func() {
-			a.itemButtons(c, it, selected)
+			a.itemButtons(c, it)
 		})
 	})
 }
 
 // itemButtons are the row's and card's action icons.
-func (a *app) itemButtons(c *ui.Context, it download.Item, onAccent bool) {
+func (a *app) itemButtons(c *ui.Context, it download.Item) {
 	p := a.palette
 	label, icon := primaryAction(it)
-	iconButtonOn(c, p, label+" "+it.FileName, icon, false, onAccent,
+	iconButton(c, p, label+" "+it.FileName, icon, false,
 		func() { a.primaryAction(it) })
-	iconButtonOn(c, p, "在文件夹中显示 "+it.FileName, icoFolderOpen,
-		it.State != download.StateCompleted || it.Missing, onAccent,
+	iconButton(c, p, "在文件夹中显示 "+it.FileName, icoFolderOpen,
+		it.State != download.StateCompleted || it.Missing,
 		func() { a.revealItem(it) })
-	iconButtonOn(c, p, "移除 "+it.FileName, icoTrash, false, onAccent,
+	iconButton(c, p, "移除 "+it.FileName, icoTrash, false,
 		func() { a.requestRemove([]string{it.ID}) })
 }
 
@@ -189,7 +188,7 @@ func (a *app) cards(c *ui.Context) {
 	a.grid.Key = func(i int) any { return a.visible[i].ID }
 	a.grid.Label = func(i int) string { return a.visible[i].FileName }
 	a.grid.Selection = &a.selection
-	ui.GridView(c, &a.grid, len(a.visible), 270, 202, func(i int) {
+	ui.GridView(c, &a.grid, len(a.visible), 280, 220, func(i int) {
 		a.card(c, a.visible[i])
 	}).Grow(1)
 }
@@ -198,16 +197,13 @@ func (a *app) cards(c *ui.Context) {
 func (a *app) card(c *ui.Context, it download.Item) {
 	p := a.palette
 	selected := a.selection.Has(it.ID)
-	card := ui.Column(c).Fill().Padding(12).Gap(8).Radius(14).
-		Background(p.Card).Border(1, p.Border).Cursor(ui.CursorPointer)
-	if !p.Dark {
-		card.Shadow(0, 1, 2, 0, p.Shadow)
-	}
+	card := ui.Column(c).Fill().Padding(16).Gap(10).Radius(12).
+		Background(p.Card).TextColor(p.Text).Border(1, p.Border).Cursor(ui.CursorPointer)
 	if card.Hovered() {
 		card.Background(p.CardHover)
 	}
 	if selected {
-		card.Background(p.AccentTint).BorderColor(p.AccentBorder)
+		card.Background(p.SelectionFill).BorderColor(p.AccentBorder)
 	}
 	card.ContextMenu(func(m *ui.Menu) { a.itemMenu(c, m, it) })
 	card.Children(func() {
@@ -218,24 +214,29 @@ func (a *app) card(c *ui.Context, it download.Item) {
 				ui.Text(c, label).FontSize(9).Bold().TextColor(fg)
 			})
 			ui.Spacer(c)
-			statusBadge(c, p, it, false)
+			statusBadge(c, p, it)
 		})
-		name := ui.Text(c, it.FileName).FontSize(12).Bold().SingleLine().Tooltip(it.Path)
+		name := ui.Text(c, it.FileName).FontSize(14).FontWeight(600).SingleLine().Tooltip(it.Path)
 		if name.RowDoubleClicked() {
 			a.primaryAction(it)
 		}
-		ui.Text(c, shortLink(it.URL)).FontSize(10).TextColor(p.Muted).SingleLine()
+		ui.Text(c, shortLink(it.URL)).FontSize(12).TextColor(p.Muted).SingleLine()
 		ui.Spacer(c)
-		progressBar(c, p, it, false)
+		progressBar(c, p, it)
 		ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, detailLine(it, a.now)).FontSize(10).TextColor(p.Muted).SingleLine().Grow(1)
+			color := p.Muted
+			if it.State == download.StateFailed || it.Attempt > 0 {
+				color = p.Danger
+			}
+			ui.Text(c, detailLine(it, a.now)).FontSize(12).TextColor(color).
+				SingleLine().Grow(1).Tooltip(detailLine(it, a.now))
 			if percent := formatPercent(it.Done, it.Total); percent != "" {
-				ui.Text(c, percent).FontSize(10).TextColor(p.Muted).FontFeatures("tnum")
+				ui.Text(c, percent).FontSize(11).TextColor(p.Muted).FontFeatures("tnum")
 			}
 		})
 		ui.Row(c).Gap(2).AlignItems(ui.Center).Children(func() {
 			ui.Spacer(c)
-			a.itemButtons(c, it, false)
+			a.itemButtons(c, it)
 		})
 	})
 }

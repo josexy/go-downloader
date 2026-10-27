@@ -17,10 +17,10 @@ func (a *app) settingsModal(c *ui.Context) {
 	width, height := c.Size()
 	panelWidth := min(640, max(420, width-80))
 	ui.Modal(c, &a.settingsOpen, func() {
-		ui.Column(c).Width(panelWidth).Gap(10).Children(func() {
+		ui.Column(c).Width(panelWidth).Gap(16).Children(func() {
 			ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
 				ui.Icon(c, icoSettings).FontSize(17).TextColor(p.Accent)
-				ui.Text(c, "设置").FontSize(18).Bold().Grow(1)
+				ui.Text(c, "设置").FontSize(20).Bold().Grow(1)
 				iconButton(c, p, "关闭设置", icoX, false, func() { a.settingsOpen = false })
 			})
 			ui.Tabs(c, &a.settingsTab, "常规", "代理", "外观", "关于").Label("设置分类")
@@ -38,13 +38,15 @@ func (a *app) settingsModal(c *ui.Context) {
 					}
 				})
 			})
-			ui.Row(c).Justify(ui.End).Children(func() {
-				if ui.Button(c, "完成").AutoFocus().Clicked() {
+			ui.Divider(c).Background(p.Divider)
+			ui.Row(c).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, "更改会自动保存").FontSize(12).TextColor(p.Muted).Grow(1)
+				if ui.PrimaryButton(c, "完成").Padding(7, 22).AutoFocus().Clicked() {
 					a.settingsOpen = false
 				}
 			})
 		})
-	})
+	}).Background(p.Card).Radius(14).Border(1, p.Border)
 }
 
 // settingsContentHeight fits the dialog to the tab's content, so a short page
@@ -58,11 +60,11 @@ func (a *app) settingsContentHeight(windowHeight float32) float32 {
 		}
 		return min(260, limit)
 	case 2:
-		return min(130, limit)
+		return min(152, limit)
 	case 3:
 		return min(190, limit)
 	default:
-		return min(280, limit)
+		return min(338, limit)
 	}
 }
 
@@ -88,21 +90,27 @@ func (a *app) afterSettingsClosed() {
 func (a *app) settingsSection(c *ui.Context, icon *ui.SVG, title string) {
 	p := a.palette
 	ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-		ui.Icon(c, icon).FontSize(12).TextColor(p.Muted)
-		ui.Text(c, title).FontSize(11).Bold().TextColor(p.Muted).LetterSpacing(0.5)
+		ui.Icon(c, icon).FontSize(14).TextColor(p.Accent)
+		ui.Text(c, title).FontSize(13).FontWeight(600).TextColor(p.Text)
 	})
 }
 
 // settingsRow is a labelled setting with its control at the end of the row.
 func (a *app) settingsRow(c *ui.Context, icon *ui.SVG, label, tip string, control func()) {
 	p := a.palette
-	row := ui.Row(c).Height(40).Gap(10).AlignItems(ui.Center)
+	row := ui.Row(c).Height(64).Padding(10, 12).Gap(12).AlignItems(ui.Center).
+		Background(p.Canvas).Radius(8)
 	if tip != "" {
 		row.Tooltip(tip)
 	}
 	row.Children(func() {
-		ui.Icon(c, icon).FontSize(15).TextColor(p.Muted)
-		ui.Text(c, label).FontSize(12).Grow(1)
+		ui.Icon(c, icon).FontSize(16).TextColor(p.Muted)
+		ui.Column(c).Grow(1).Gap(4).Children(func() {
+			ui.Text(c, label).FontSize(14)
+			if tip != "" {
+				ui.Text(c, tip).FontSize(12).TextColor(p.Muted).SingleLine()
+			}
+		})
 		control()
 	})
 }
@@ -112,13 +120,14 @@ func (a *app) settingsGeneral(c *ui.Context) {
 	p := a.palette
 	a.settingsSection(c, icoDownload, "下载")
 
-	folder := ui.Row(c).Height(48).Gap(10).AlignItems(ui.Center).
+	folder := ui.Row(c).Height(72).Padding(10, 12).Gap(12).AlignItems(ui.Center).
+		Background(p.Canvas).Radius(8).
 		Tooltip("新添加的下载会保存到这里；正在下载的项目不受影响。")
 	folder.Children(func() {
 		ui.Icon(c, icoFolder).FontSize(15).TextColor(p.Muted)
-		ui.Column(c).Grow(1).Gap(1).Children(func() {
-			ui.Text(c, "保存位置").FontSize(12)
-			ui.Text(c, a.s.DownloadDir).FontSize(10).TextColor(p.Muted).
+		ui.Column(c).Grow(1).Gap(4).Children(func() {
+			ui.Text(c, "保存位置").FontSize(14)
+			ui.Text(c, a.s.DownloadDir).FontSize(12).TextColor(p.Muted).
 				SingleLine().Tooltip(a.s.DownloadDir)
 		})
 		iconButton(c, p, "选择文件夹", icoFolderPlus, false, func() { a.chooseFolder() })
@@ -147,7 +156,7 @@ func (a *app) settingsGeneral(c *ui.Context) {
 	if a.proxyErr != "" {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			ui.Icon(c, icoAlert).FontSize(13).TextColor(p.Danger)
-			ui.Text(c, "代理配置有误："+a.proxyErr).FontSize(10).TextColor(p.Danger)
+			ui.Text(c, "代理配置有误："+a.proxyErr).FontSize(12).TextColor(p.Danger)
 		})
 	}
 }
@@ -170,10 +179,10 @@ func (a *app) settingsProxy(c *ui.Context) {
 	ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
 		if a.proxyTest.running {
 			ui.Spinner(c)
-			ui.Text(c, "测试中…").FontSize(11).TextColor(p.Muted)
+			ui.Text(c, "测试中…").FontSize(13).TextColor(p.Muted)
 			return
 		}
-		if ui.Button(c, "测试连接").FontSize(11).
+		if ui.Button(c, "测试连接").FontSize(13).
 			Tooltip("对之后开始的连接生效，正在下载的项目不受影响。").Clicked() {
 			a.runProxyTest()
 		}
@@ -182,7 +191,7 @@ func (a *app) settingsProxy(c *ui.Context) {
 			if a.proxyTest.ok {
 				color = p.Success
 			}
-			ui.Text(c, a.proxyTest.result).FontSize(11).TextColor(color).
+			ui.Text(c, a.proxyTest.result).FontSize(13).TextColor(color).
 				SingleLine().Tooltip(a.proxyTest.result)
 		}
 	})
@@ -191,16 +200,16 @@ func (a *app) settingsProxy(c *ui.Context) {
 // systemProxyBox shows the system proxy MyGo found.
 func (a *app) systemProxyBox(c *ui.Context) {
 	p := a.palette
-	box := ui.Column(c).Padding(10, 12).Gap(4).Radius(10).
-		Background(p.CardHover).Border(1, p.Border).
+	box := ui.Column(c).Padding(14).Gap(8).Radius(8).
+		Background(p.Canvas).Border(1, p.Border).
 		Tooltip("也会读取 HTTP_PROXY / HTTPS_PROXY / ALL_PROXY / NO_PROXY 环境变量。")
 	box.Children(func() {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			ui.Icon(c, icoGlobe).FontSize(14).TextColor(p.Accent)
 			ui.Column(c).Grow(1).Gap(1).Children(func() {
 				summary := a.systemProxySummary()
-				ui.Text(c, summary).FontSize(12).SingleLine().Tooltip(summary)
-				ui.Text(c, a.systemSourceLine()).FontSize(10).TextColor(p.Muted).
+				ui.Text(c, summary).FontSize(14).SingleLine().Tooltip(summary)
+				ui.Text(c, a.systemSourceLine()).FontSize(12).TextColor(p.Muted).
 					SingleLine().Tooltip(a.systemSourceLine())
 			})
 			if a.systemRefreshing {
@@ -210,10 +219,10 @@ func (a *app) systemProxyBox(c *ui.Context) {
 			}
 		})
 		if a.system != nil && a.system.Note != "" {
-			ui.Text(c, a.system.Note).FontSize(10).TextColor(p.Warning)
+			ui.Text(c, a.system.Note).FontSize(12).TextColor(p.Warning)
 		}
 		if a.systemErr != "" {
-			ui.Text(c, "读取系统代理失败："+a.systemErr).FontSize(10).TextColor(p.Danger)
+			ui.Text(c, "读取系统代理失败："+a.systemErr).FontSize(12).TextColor(p.Danger)
 		}
 	})
 }
@@ -281,12 +290,12 @@ func (a *app) manualProxyForm(c *ui.Context) {
 func (a *app) settingsAppearance(c *ui.Context) {
 	a.settingsRow(c, icoSun, "主题", "浅色、深色，或跟随系统。", func() {
 		a.segmented(c, settings.ThemeLabels,
-			[]*ui.SVG{icoSun, icoMoon, icoMonitor},
+			nil,
 			settings.ThemeIndex(a.s.Theme), false,
 			func(i int) { a.setTheme(settings.ThemeValues[i]) })
 	})
 	a.settingsRow(c, icoList, "下载列表", "列表适合看进度，卡片适合浏览文件。", func() {
-		a.segmented(c, viewLabels, []*ui.SVG{icoList, icoGrid}, a.viewIdx, false,
+		a.segmented(c, viewLabels, nil, a.viewIdx, false,
 			func(i int) { a.setView(viewValues[i]) })
 	})
 }
@@ -300,13 +309,13 @@ func (a *app) settingsAbout(c *ui.Context) {
 		logo.Children(func() { ui.Icon(c, icoDownload).FontSize(24).TextColor(p.OnAccent) })
 		ui.Column(c).Gap(2).Children(func() {
 			ui.Text(c, "下载器").FontSize(17).Bold()
-			ui.Text(c, "版本 "+a.deps.version).FontSize(11).TextColor(p.Muted)
+			ui.Text(c, "版本 "+a.deps.version).FontSize(13).TextColor(p.Muted)
 		})
 	})
 
 	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 		ui.Icon(c, icoInfo).FontSize(13).TextColor(p.Muted)
-		ui.Text(c, "基于 MyGo 原生 UI").FontSize(11).TextColor(p.Muted).Grow(1)
+		ui.Text(c, "基于 MyGo 原生 UI").FontSize(13).TextColor(p.Muted).Grow(1)
 		ui.Link(c, "MyGo", "https://github.com/egoist/mygo")
 	})
 
@@ -314,7 +323,7 @@ func (a *app) settingsAbout(c *ui.Context) {
 		Tooltip("settings.json 保存设置，tasks.json 保存下载记录；代理密码在系统凭据库中。")
 	data.Children(func() {
 		ui.Icon(c, icoFolder).FontSize(14).TextColor(p.Muted)
-		ui.Text(c, a.deps.dataDir).FontSize(10).TextColor(p.Muted).
+		ui.Text(c, a.deps.dataDir).FontSize(12).TextColor(p.Muted).
 			SingleLine().Grow(1).Tooltip(a.deps.dataDir)
 		iconButton(c, p, "打开数据目录", icoFolderOpen, false, func() { a.openDataDir() })
 		iconButton(c, p, "复制数据目录", icoCopy, false, func() {

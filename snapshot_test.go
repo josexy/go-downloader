@@ -41,6 +41,8 @@ func TestSnapshots(t *testing.T) {
 	engine := &fakeEngine{}
 	engine.items = sampleItems()
 	a := newTestApp(t, engine)
+	a.s.DownloadDir = filepath.FromSlash("C:/Users/Ada/Downloads")
+	a.deps.dataDir = filepath.FromSlash("C:/Users/Ada/AppData/Roaming/Downloader")
 	a.system = &proxy.System{
 		Source: "Windows 系统代理",
 		HTTP:   &proxy.Endpoint{Kind: proxy.KindHTTP, Host: "127.0.0.1", Port: 7890},
@@ -115,9 +117,20 @@ func TestSnapshots(t *testing.T) {
 	tt.SetDark(true)
 	tt.Frame()
 	save("dark-settings-proxy.png", tt)
+	for _, tab := range []struct {
+		index int
+		name  string
+	}{
+		{0, "general"}, {2, "appearance"}, {3, "about"},
+	} {
+		a.settingsTab = tab.index
+		tt.Frame()
+		save("dark-settings-"+tab.name+".png", tt)
+	}
 
 	tt.SetDark(false)
 	empty := newTestApp(t, &fakeEngine{})
+	empty.s.DownloadDir = a.s.DownloadDir
 	tts := testerFor(empty)
 	tts.Frame()
 	save("light-empty.png", tts)
@@ -126,9 +139,9 @@ func TestSnapshots(t *testing.T) {
 	tts.Frame()
 	save("dark-empty.png", tts)
 
-	// A focused source list: its chosen item is a large fill, which the
-	// dark theme paints in the calmer selection color.
+	// Selection must remain readable after the sidebar takes keyboard focus.
 	focused := newTestApp(t, &fakeEngine{items: sampleItems()})
+	focused.s.DownloadDir = a.s.DownloadDir
 	ft := testerFor(focused)
 	if err := ft.Click("下载完成"); err != nil {
 		t.Fatal(err)
@@ -138,6 +151,33 @@ func TestSnapshots(t *testing.T) {
 	ft.SetDark(true)
 	ft.Frame()
 	save("dark-sidebar-selected.png", ft)
+
+	// The supported minimum window size must keep actions reachable and
+	// make long settings pages scroll rather than overflow the dialog.
+	a.settingsOpen = false
+	a.selection.Clear()
+	tt.SetSize(960, 640)
+	for _, dark := range []bool{false, true} {
+		name := "light"
+		if dark {
+			name = "dark"
+		}
+		tt.SetDark(dark)
+		for _, view := range viewValues {
+			a.setView(view)
+			tt.Frame()
+			save(name+"-compact-"+string(view)+".png", tt)
+		}
+		a.settingsOpen = true
+		a.settingsTab = 1
+		tt.Frame()
+		save(name+"-compact-settings.png", tt)
+		a.settingsOpen = false
+		a.requestRemove([]string{"d1", "d3"})
+		tt.Frame()
+		save(name+"-confirm.png", tt)
+		a.confirm.open = false
+	}
 }
 
 // sampleItems is a mix of states for the snapshots.

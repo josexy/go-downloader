@@ -64,6 +64,7 @@ func (m *Manager) fetch(ctx context.Context, t *task, client *http.Client) error
 		return errRemoved
 	}
 	etag, lastModified := t.etag, t.lastModified
+	user, pass := t.user, t.pass
 	m.mu.Unlock()
 
 	path := cur.Path
@@ -81,7 +82,11 @@ func (m *Manager) fetch(ctx context.Context, t *task, client *http.Client) error
 		lastModified = meta.LastModified
 	}
 	hadPart := partSize > 0
-	resume := hadPart
+	validator := ifRange(etag, lastModified)
+	resume := hadPart && validator != ""
+	if !resume {
+		partSize = 0
+	}
 
 	reqCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -91,14 +96,12 @@ func (m *Manager) fetch(ctx context.Context, t *task, client *http.Client) error
 	}
 	req.Header.Set("User-Agent", UserAgent)
 	req.Header.Set("Accept-Encoding", "identity")
-	if t.user != "" {
-		req.SetBasicAuth(t.user, t.pass)
+	if user != "" {
+		req.SetBasicAuth(user, pass)
 	}
 	if resume {
 		req.Header.Set("Range", fmt.Sprintf("bytes=%d-", partSize))
-		if v := ifRange(etag, lastModified); v != "" {
-			req.Header.Set("If-Range", v)
-		}
+		req.Header.Set("If-Range", validator)
 	}
 
 	var stalled atomic.Bool
@@ -126,7 +129,7 @@ func (m *Manager) fetch(ctx context.Context, t *task, client *http.Client) error
 	switch {
 	case code == http.StatusPartialContent:
 		start, size, ok := parseContentRange(resp.Header.Get("Content-Range"))
-		if !ok || !resume || start != partSize {
+		if !ok || !resume || start != partSize || !sameValidators(resp, etag, lastModified) {
 			removePart(partPath, metaPath)
 			return errRestart
 		}
@@ -145,7 +148,7 @@ func (m *Manager) fetch(ctx context.Context, t *task, client *http.Client) error
 		}
 		total = resp.ContentLength
 	case code == http.StatusRequestedRangeNotSatisfiable:
-		if size, ok := parseUnsatisfiedRange(resp.Header.Get("Content-Range")); ok && hadPart && size == partSize {
+		if size, ok := parseUnsatisfiedRange(resp.Header.Get("Content-Range")); ok && resume && size == partSize && sameValidators(resp, etag, lastModified) {
 			return m.finalize(t, partPath, metaPath, partSize, partSize)
 		}
 		removePart(partPath, metaPath)
@@ -171,6 +174,12 @@ func (m *Manager) fetch(ctx context.Context, t *task, client *http.Client) error
 		partSize = 0
 	}
 
+	if !resume {
+		// A full response replaces the representation, including validators.
+		// Keeping an old ETag here could make the next retry append to new
+		// bytes using a validator for an entirely different file.
+		etag, lastModified = "", ""
+	}
 	if v := resp.Header.Get("ETag"); v != "" {
 		etag = v
 	}
@@ -273,9 +282,9 @@ func (m *Manager) adoptName(t *task, resp *http.Response) {
 		return
 	}
 	dir := filepath.Dir(t.item.Path)
-	delete(m.reserved, pathKey(t.item.Path))
+	unreservePath(m.reserved, t.item.Path)
 	p := uniquePath(dir, name, m.reserved)
-	m.reserved[pathKey(p)] = true
+	reservePath(m.reserved, p)
 	t.item.Path = p
 	t.item.FileName = filepath.Base(p)
 }
@@ -338,9 +347,9 @@ func (m *Manager) finalize(t *task, partPath, metaPath string, done, total int64
 
 	if fileExists(finalPath) {
 		m.mu.Lock()
-		delete(m.reserved, pathKey(finalPath))
+		unreservePath(m.reserved, finalPath)
 		finalPath = uniquePath(filepath.Dir(finalPath), filepath.Base(finalPath), m.reserved)
-		m.reserved[pathKey(finalPath)] = true
+		reservePath(m.reserved, finalPath)
 		t.item.Path = finalPath
 		t.item.FileName = filepath.Base(finalPath)
 		m.mu.Unlock()
@@ -383,10 +392,25 @@ func removePart(partPath, metaPath string) {
 }
 
 func ifRange(etag, lastModified string) string {
-	if etag != "" && !strings.HasPrefix(etag, "W/") {
+	if len(etag) >= 2 && strings.HasPrefix(etag, `"`) && strings.HasSuffix(etag, `"`) {
 		return etag
 	}
-	return lastModified
+	if _, err := http.ParseTime(lastModified); err == nil {
+		return lastModified
+	}
+	return ""
+}
+
+// If-Range normally makes the server return a full response after a change.
+// Reject contradictory validators even when a server still returns 206/416.
+func sameValidators(resp *http.Response, etag, lastModified string) bool {
+	if current := resp.Header.Get("ETag"); etag != "" && current != "" && current != etag {
+		return false
+	}
+	if current := resp.Header.Get("Last-Modified"); lastModified != "" && current != "" && current != lastModified {
+		return false
+	}
+	return true
 }
 
 // parseContentRange reads "bytes 100-199/1234" or "bytes 100-199/*".

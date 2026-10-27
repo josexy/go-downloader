@@ -109,8 +109,8 @@ func (m *Manager) SetOnComplete(fn func(Item)) {
 }
 
 // Add parses the links in raw, one per line or space separated, and queues
-// them. It returns how many were added, how many were skipped as duplicates of
-// an unfinished download, and the tokens that were not valid links.
+// them. It returns how many were added or given new credentials, how many were
+// skipped as duplicates of an unfinished download, and invalid tokens.
 func (m *Manager) Add(raw string) (added int, skipped int, invalid []string) {
 	targets, invalid := parseTargets(raw)
 	m.mu.Lock()
@@ -119,8 +119,18 @@ func (m *Manager) Add(raw string) (added int, skipped int, invalid []string) {
 		return 0, 0, invalid
 	}
 	for _, t := range targets {
-		if m.hasUnfinishedLocked(t.display) {
-			skipped++
+		if existing := m.unfinishedLocked(t.display); existing != nil {
+			// Credentials are intentionally not persisted. Re-adding an
+			// authenticated link restores them without losing partial data.
+			if !existing.working && t.user != "" && (existing.user != t.user || existing.pass != t.pass) {
+				existing.user, existing.pass = t.user, t.pass
+				if m.auto {
+					existing.item.State = StateQueued
+				}
+				added++
+			} else {
+				skipped++
+			}
 			continue
 		}
 		name := "download"
@@ -128,7 +138,7 @@ func (m *Manager) Add(raw string) (added int, skipped int, invalid []string) {
 			name = NameFromURL(u)
 		}
 		targetPath := uniquePath(m.dir, name, m.reserved)
-		m.reserved[pathKey(targetPath)] = true
+		reservePath(m.reserved, targetPath)
 		state := StateQueued
 		if !m.auto {
 			// With auto-start off, a new download waits for the user, as
@@ -160,13 +170,13 @@ func (m *Manager) Add(raw string) (added int, skipped int, invalid []string) {
 	return added, skipped, invalid
 }
 
-func (m *Manager) hasUnfinishedLocked(url string) bool {
+func (m *Manager) unfinishedLocked(url string) *task {
 	for _, t := range m.tasks {
 		if t.item.URL == url && !t.item.State.Terminal() {
-			return true
+			return t
 		}
 	}
-	return false
+	return nil
 }
 
 // Pause stops a queued or running download, keeping its partial file.
@@ -383,6 +393,39 @@ func (m *Manager) SetAutoStart(on bool) {
 	m.mu.Unlock()
 }
 
+// RefreshFiles checks completed files. Call it from a background worker: file
+// systems such as network shares can block, and Snapshot must stay cheap for UI
+// frames. Publish only results that still belong to the same completed task.
+func (m *Manager) RefreshFiles() {
+	m.mu.Lock()
+	var completed []Item
+	for _, t := range m.tasks {
+		if t.item.State == StateCompleted {
+			completed = append(completed, t.item)
+		}
+	}
+	m.mu.Unlock()
+
+	changed := false
+	for _, item := range completed {
+		info, err := os.Stat(item.Path)
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		missing := err != nil || info.IsDir()
+		m.mu.Lock()
+		t := m.byID[item.ID]
+		if t != nil && t.item.State == StateCompleted && t.item.Path == item.Path && t.item.FinishedAt.Equal(item.FinishedAt) && t.item.Missing != missing {
+			t.item.Missing = missing
+			changed = true
+		}
+		m.mu.Unlock()
+	}
+	if changed {
+		m.notify()
+	}
+}
+
 // Snapshot returns the downloads and their counts for the UI.
 func (m *Manager) Snapshot() ([]Item, Summary) {
 	m.mu.Lock()
@@ -507,7 +550,7 @@ func (m *Manager) Restore(records []Record) {
 			item.Resumable = item.Resumable || meta.Resumable
 		}
 		t.item = item
-		m.reserved[pathKey(item.Path)] = true
+		reservePath(m.reserved, item.Path)
 		m.tasks = append(m.tasks, t)
 		m.byID[item.ID] = t
 	}
@@ -708,6 +751,6 @@ func (m *Manager) releaseReservation(path string) {
 		return
 	}
 	m.mu.Lock()
-	delete(m.reserved, pathKey(path))
+	unreservePath(m.reserved, path)
 	m.mu.Unlock()
 }

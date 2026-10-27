@@ -49,6 +49,7 @@ type downloader interface {
 	SetDir(dir string)
 	SetMaxConcurrent(n int)
 	SetAutoStart(on bool)
+	RefreshFiles()
 	Snapshot() ([]download.Item, download.Summary)
 	Records() []download.Record
 	Restore([]download.Record)
@@ -216,7 +217,7 @@ func (a *app) start() {
 		MinWidth:        960,
 		MinHeight:       640,
 		StateKey:        "main",
-		BackgroundColor: "light-dark(#F3F1EB, #0B1011)",
+		BackgroundColor: "light-dark(#F4F6FA, #151B26)",
 		Content:         ui.View(a.view),
 	})
 	a.engine.SetOnChange(a.onEngineChange)
@@ -266,6 +267,7 @@ func (a *app) startSaver() {
 			case <-a.saverCh:
 				return
 			case <-ticker.C:
+				a.engine.RefreshFiles()
 				if a.dirty.Swap(false) {
 					if err := a.store.SaveTasks(a.engine.Records()); err != nil {
 						log.Println(err)

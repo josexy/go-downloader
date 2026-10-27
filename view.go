@@ -68,18 +68,19 @@ func (a *app) shortcuts(c *ui.Context) {
 // header is the app's top bar.
 func (a *app) header(c *ui.Context, summary download.Summary) {
 	p := a.palette
-	ui.Row(c).Height(64).FillWidth().Padding(0, 20).Gap(12).AlignItems(ui.Center).Background(p.Canvas).Children(func() {
-		logo := ui.Box(c).Size(36, 36).Radius(11).Background(p.Accent)
+	ui.Row(c).Height(72).FillWidth().Padding(0, 24).Gap(12).AlignItems(ui.Center).Background(p.Card).Children(func() {
+		logo := ui.Box(c).Size(36, 36).Radius(10).Background(p.Accent)
 		logo.Center()
 		logo.Children(func() {
 			ui.Icon(c, icoDownload).FontSize(18).TextColor(p.OnAccent)
 		})
-		ui.Column(c).Gap(0).Children(func() {
-			ui.Text(c, "下载器").FontSize(15).Bold()
-			ui.Text(c, headerSubtitle(summary)).FontSize(11).TextColor(p.Muted)
+		ui.Column(c).Gap(3).Children(func() {
+			ui.Text(c, "下载器").FontSize(17).Bold()
+			ui.Text(c, headerSubtitle(summary)).FontSize(12).TextColor(p.Muted)
 		})
 		ui.Spacer(c)
-		search := ui.SearchField(c, &a.query).Width(220).Label("搜索下载").Placeholder("搜索下载")
+		search := ui.SearchField(c, &a.query).Width(236).FontSize(13).
+			Background(p.Canvas).Label("搜索下载").Placeholder("搜索文件名或链接")
 		if a.focusSearch {
 			search.Focus()
 			a.focusSearch = false
@@ -128,7 +129,7 @@ func (a *app) measureRail(items []download.Item) {
 }
 
 // progressRail is the thin line under the header: the share of the working
-// downloads already transferred, in the app's accent gradient.
+// downloads already transferred.
 func (a *app) progressRail(c *ui.Context) {
 	p := a.palette
 	if !a.railOn {
@@ -161,15 +162,15 @@ func (a *app) themeSwitch(c *ui.Context) {
 func (a *app) sidebar(c *ui.Context, summary download.Summary) {
 	p := a.palette
 	selected := a.filter
-	ui.Column(c).Width(244).FillHeight().Background(p.Sidebar).
+	ui.Column(c).Width(218).FillHeight().Background(p.Sidebar).
 		BorderWidth(0, 1, 0, 0).BorderColor(p.Border).
-		Padding(14).Gap(10).Children(func() {
-		// The chosen item is a large fill. In the dark theme the bright
-		// accent makes it glow, so build the source list with the calmer
-		// selection colors, as a chosen row uses.
+		Padding(20, 14, 16, 14).Gap(14).Children(func() {
+		sectionLabel(c, p, "下载管理").Padding(0, 10)
 		base := c.Theme()
 		side := *base
-		side.Accent = p.SelectionFill
+		side.Surface = p.Sidebar
+		side.SurfacePressed = p.SelectionFill
+		side.Accent = p.Accent
 		side.AccentText = p.SelectionText
 		c.SetTheme(&side)
 		ui.Sidebar(c, &selected, func() {
@@ -186,17 +187,20 @@ func (a *app) sidebar(c *ui.Context, summary download.Summary) {
 				{filterFailed, icoAlert, "下载失败", summary.Failed},
 			} {
 				item := item
-				entry := ui.SidebarItem(c, item.id, item.icon, item.label)
+				entry := ui.SidebarItem(c, item.id, item.icon, item.label).
+					Height(42).Padding(8, 10).Radius(8).FontSize(14)
+				if item.id == a.filter {
+					entry.Background(p.SelectionFill).TextColor(p.SelectionText)
+				}
 				entry.Children(func() {
-					badge := ui.Badge(c, strconv.Itoa(item.count)).FontSize(10)
+					badge := ui.Text(c, strconv.Itoa(item.count)).FontSize(12).
+						FontFeatures("tnum").TextColor(p.Muted)
 					if item.id == a.filter {
-						badge.Background(ui.Transparent).TextColor(p.SelectionText)
-					} else {
-						badge.TextColor(p.Muted)
+						badge.TextColor(p.SelectionText)
 					}
 				})
 			}
-		})
+		}).FillWidth().Padding(0).Gap(5)
 		c.SetTheme(base)
 		ui.Spacer(c)
 		a.folderCard(c)
@@ -219,11 +223,12 @@ func isFilter(id string) bool {
 // folderCard shows where new downloads go.
 func (a *app) folderCard(c *ui.Context) {
 	p := a.palette
-	ui.Column(c).Padding(10).Gap(7).Radius(10).Background(p.Card).Border(1, p.Border).Children(func() {
+	ui.Column(c).Padding(12, 10).Gap(10).
+		BorderWidth(1, 0, 0, 0).BorderColor(p.Border).Children(func() {
 		sectionLabel(c, p, "保存到")
 		ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
 			ui.Icon(c, icoFolder).FontSize(13).TextColor(p.Muted)
-			ui.Text(c, folderLabel(a.s.DownloadDir)).FontSize(11).SingleLine().Grow(1).Tooltip(a.s.DownloadDir)
+			ui.Text(c, folderLabel(a.s.DownloadDir)).FontSize(13).SingleLine().Grow(1).Tooltip(a.s.DownloadDir)
 		})
 		ui.Row(c).Gap(6).Children(func() {
 			if smallButton(c, "更改").Clicked() {
@@ -239,14 +244,17 @@ func (a *app) folderCard(c *ui.Context) {
 // proxyCard opens the proxy settings.
 func (a *app) proxyCard(c *ui.Context) {
 	p := a.palette
-	card := ui.Row(c).Padding(10).Gap(8).Radius(10).Background(p.Card).Border(1, p.Border).
+	card := ui.Row(c).Padding(10).Gap(8).Radius(8).
 		AlignItems(ui.Center).Cursor(ui.CursorPointer)
+	if card.Hovered() {
+		card.Background(p.CardHover)
+	}
 	card.OnClick(func() { a.openSettings(1) })
 	card.Children(func() {
 		ui.Icon(c, icoShield).FontSize(14).TextColor(p.Accent)
 		ui.Column(c).Grow(1).Gap(1).Children(func() {
-			ui.Text(c, a.proxySummaryShort()).FontSize(11).SingleLine()
-			ui.Text(c, "代理设置").FontSize(10).TextColor(p.Muted)
+			ui.Text(c, a.proxySummaryShort()).FontSize(12).SingleLine()
+			ui.Text(c, "代理设置").FontSize(11).TextColor(p.Muted)
 		})
 		ui.Icon(c, icoChevron).FontSize(12).TextColor(p.Muted)
 	})
@@ -255,7 +263,7 @@ func (a *app) proxyCard(c *ui.Context) {
 // content is the main column: add card, toolbar and the downloads.
 func (a *app) content(c *ui.Context, summary download.Summary) {
 	p := a.palette
-	ui.Column(c).Grow(1).FillHeight().Background(p.Canvas).Padding(18).Gap(12).Children(func() {
+	ui.Column(c).Grow(1).FillHeight().Background(p.Canvas).Padding(22, 24).Gap(18).Children(func() {
 		a.addCard(c)
 		a.toolbar(c, summary)
 		ui.Box(c).Grow(1).FillWidth().Children(func() {
@@ -276,14 +284,14 @@ func (a *app) content(c *ui.Context, summary download.Summary) {
 func (a *app) emptyState(c *ui.Context) {
 	p := a.palette
 	filtered := a.query != "" || a.filter != filterAll
-	ui.Column(c).Fill().Center().Gap(10).Children(func() {
-		circle := ui.Box(c).Size(64, 64).Radius(32).Background(p.AccentTint).Center()
+	ui.Column(c).Fill().Center().Gap(14).Radius(12).Background(p.Card).Border(1, p.Border).Children(func() {
+		circle := ui.Box(c).Size(64, 64).Radius(20).Background(p.AccentTint).Center()
 		circle.Children(func() {
 			ui.Icon(c, icoDownload).FontSize(26).TextColor(p.Accent)
 		})
 		if filtered {
-			ui.Text(c, "没有匹配的下载").FontSize(16).Bold()
-			ui.Text(c, "换个关键词或筛选条件试试").FontSize(12).TextColor(p.Muted)
+			ui.Text(c, "没有匹配的下载").FontSize(18).Bold()
+			ui.Text(c, "换个关键词或筛选条件试试").FontSize(13).TextColor(p.Muted)
 			ui.Row(c).Justify(ui.Center).Children(func() {
 				if smallButton(c, "清除筛选").Clicked() {
 					a.query = ""
@@ -293,8 +301,8 @@ func (a *app) emptyState(c *ui.Context) {
 			})
 			return
 		}
-		ui.Text(c, "还没有下载").FontSize(16).Bold()
-		ui.Text(c, "在上方粘贴链接，即可开始下载").FontSize(12).TextColor(p.Muted)
+		ui.Text(c, "还没有下载").FontSize(18).Bold()
+		ui.Text(c, "在上方粘贴链接，即可开始下载").FontSize(13).TextColor(p.Muted)
 		ui.Row(c).Justify(ui.Center).Children(func() {
 			if ui.PrimaryButton(c, "从剪贴板粘贴").FontSize(12).Padding(6, 14).Radius(8).Clicked() {
 				a.pasteClipboard(c)

@@ -207,18 +207,46 @@ func pathKey(p string) string {
 	return p
 }
 
-// uniquePath returns a path for name in dir that neither exists nor is
-// reserved, numbering it "name (2).ext" as Finder does.
+// taskPaths includes the final file and both files used while downloading.
+// They share a reservation so a normal file named *.part cannot be mistaken
+// for another task's partial download.
+func taskPaths(path string) [3]string {
+	return [3]string{path, path + ".part", path + ".part.meta"}
+}
+
+func reservePath(reserved map[string]bool, path string) {
+	for _, p := range taskPaths(path) {
+		reserved[pathKey(p)] = true
+	}
+}
+
+func unreservePath(reserved map[string]bool, path string) {
+	for _, p := range taskPaths(path) {
+		delete(reserved, pathKey(p))
+	}
+}
+
+func pathAvailable(path string, reserved map[string]bool) bool {
+	for _, p := range taskPaths(path) {
+		if reserved[pathKey(p)] || fileExists(p) {
+			return false
+		}
+	}
+	return true
+}
+
+// uniquePath finds room for the final file and its temporary files,
+// numbering it "name (2).ext" as Finder does.
 func uniquePath(dir, name string, reserved map[string]bool) string {
 	candidate := filepath.Join(dir, name)
-	if !reserved[pathKey(candidate)] && !fileExists(candidate) {
+	if pathAvailable(candidate, reserved) {
 		return candidate
 	}
 	ext := filepath.Ext(name)
 	base := strings.TrimSuffix(name, ext)
 	for i := 2; ; i++ {
 		candidate = filepath.Join(dir, base+" ("+itoa(i)+")"+ext)
-		if !reserved[pathKey(candidate)] && !fileExists(candidate) {
+		if pathAvailable(candidate, reserved) {
 			return candidate
 		}
 	}

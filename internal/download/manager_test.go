@@ -99,6 +99,7 @@ func waitDownloading(t *testing.T, m *Manager, id string, done int64) Item {
 func rangeServer(t *testing.T, content []byte, chunk int, delay time.Duration, ignoreRange bool) *httptest.Server {
 	t.Helper()
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("ETag", `"test-content"`)
 		start := int64(0)
 		if !ignoreRange {
 			if v := r.Header.Get("Range"); strings.HasPrefix(v, "bytes=") {
