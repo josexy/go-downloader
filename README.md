@@ -93,14 +93,22 @@ go tool mygo build -platform windows/amd64,darwin/universal,linux/amd64
 ## 项目结构
 
 ```
-main.go / app.go / deps.go     应用装配、生命周期、持久化与异步调度
-view*.go                       原生 UI：自定义标题栏、侧边栏、添加卡、列表/卡片、设置与确认弹窗
-style.go / icons.go / format.go 调色板、自定义 MyGo 主题、内联图标与格式化
-internal/proxy                 代理配置、系统代理探测、HTTP/SOCKS5 传输
-internal/download              下载队列、Range 续传、重试、文件名与任务记录
-internal/settings, internal/store  设置类型与 JSON 持久化
-scripts/make-icon.py           生成 resources/icon.png
+main.go                         程序入口，调用 app.Run()
+internal/app/
+  run.go                        应用装配、单实例、语言设置与生命周期回调
+  app*.go / deps.go             窗口状态、操作、设置、持久化与平台服务
+  view*.go                      UI 绘制：标题栏、侧边栏、下载列表、设置与弹窗
+  style.go / icons.go / format.go  主题、图标与显示格式化
+  *_test.go / testdata/          应用交互测试与生成的视觉快照
+internal/download/              下载队列、Range 续传、重试、文件名与任务记录
+internal/proxy/                 代理配置、系统代理探测、HTTP/SOCKS5 传输
+internal/settings/              设置类型
+internal/store/                 设置与任务记录的 JSON 持久化
+resources/ / mygo.json          应用图标与 MyGo 打包配置
+scripts/make-icon.py            生成 resources/icon.png
 ```
+
+UI 绘制、窗口状态和操作回调集中在 `internal/app`，只通过 `Run()` 向入口提供启动能力；新界面与应用操作放在该包中，下载、代理和存储等独立能力按职责放在对应的 `internal` 包中。
 
 ## 测试与视觉快照
 
@@ -119,8 +127,8 @@ ETag 变化、并发上限、重试、404、0 字节、未知长度、基本认�
 界面快照（浅/深 × 列表/卡片、选中状态、空状态、设置与确认弹窗，以及 960×640 最小窗口）用 `ui.Tester` 渲染真实像素：
 
 ```sh
-DOWNLOADER_SNAPSHOT=1 go test -run TestSnapshots .
-# 输出到 testdata/snapshots/
+DOWNLOADER_SNAPSHOT=1 go test -run TestSnapshots ./internal/app
+# 输出到 internal/app/testdata/snapshots/
 ```
 
 ## 已知限制

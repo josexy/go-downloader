@@ -4,4 +4,4 @@
 mygo_windows_*.syso
 
 # Generated visual snapshots
-/testdata/snapshots/
+/internal/app/testdata/snapshots/

@@ -1,4 +1,4 @@
-package main
+package app
 
 import (
 	"image/png"
@@ -16,7 +16,7 @@ import (
 
 // TestSnapshots renders the interface to PNG files for visual review:
 //
-//	DOWNLOADER_SNAPSHOT=1 go test -run TestSnapshots .
+//	DOWNLOADER_SNAPSHOT=1 go test -run TestSnapshots ./internal/app
 func TestSnapshots(t *testing.T) {
 	if os.Getenv("DOWNLOADER_SNAPSHOT") == "" {
 		t.Skip("set DOWNLOADER_SNAPSHOT=1 to write the snapshots")
