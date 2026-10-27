@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+
+	"go-downloader/internal/appinfo"
 )
 
 func TestParseEndpoint(t *testing.T) {
@@ -303,7 +305,7 @@ func TestDirectHeaders(t *testing.T) {
 	defer client.CloseIdleConnections()
 	req, _ := http.NewRequest(http.MethodGet, srv.URL, nil)
 	req.Header.Set("Accept-Encoding", "identity")
-	req.Header.Set("User-Agent", UserAgent())
+	req.Header.Set("User-Agent", appinfo.UserAgent(""))
 	resp, err := client.Do(req)
 	if err != nil {
 		t.Fatal(err)
@@ -312,7 +314,7 @@ func TestDirectHeaders(t *testing.T) {
 	if seen.Get("Accept-Encoding") != "identity" {
 		t.Errorf("Accept-Encoding = %q", seen.Get("Accept-Encoding"))
 	}
-	if seen.Get("User-Agent") != UserAgent() {
+	if seen.Get("User-Agent") != appinfo.UserAgent("") {
 		t.Errorf("User-Agent = %q", seen.Get("User-Agent"))
 	}
 	if tr := client.Transport.(*http.Transport); !tr.DisableCompression {
@@ -325,10 +327,10 @@ func TestCheck(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer srv.Close()
-	if _, err := Check(context.Background(), Config{Mode: ModeNone}, nil, srv.URL); err != nil {
+	if _, err := Check(context.Background(), Config{Mode: ModeNone}, nil, srv.URL, ""); err != nil {
 		t.Fatalf("Check: %v", err)
 	}
-	if _, err := Check(context.Background(), Config{Mode: ModeManual, Kind: KindHTTP, Host: "", Port: 1}, nil, srv.URL); err == nil {
+	if _, err := Check(context.Background(), Config{Mode: ModeManual, Kind: KindHTTP, Host: "", Port: 1}, nil, srv.URL, ""); err == nil {
 		t.Error("Check with an invalid config should fail")
 	}
 }

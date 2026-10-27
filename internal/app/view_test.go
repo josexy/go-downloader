@@ -316,7 +316,7 @@ func newTestApp(t *testing.T, engine *fakeEngine) *app {
 	d := deps{
 		dataDir:    dataDir,
 		defaultDir: downloadDir,
-		version:    "0.1.0",
+		version:    "test",
 		secrets:    &memSecrets{m: map[string]string{}},
 		now:        func() time.Time { return testNow },
 		async:      func(fn func()) { fn() },

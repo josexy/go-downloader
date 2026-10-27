@@ -63,7 +63,7 @@ go build ./...
 go tool mygo build
 ```
 
-产物位于 `build/<os>-<arch>/`，应用名称和版本由 [mygo.json](mygo.json) 配置：
+产物位于 `build/<os>-<arch>/`，应用名称和版本由 [mygo.json](mygo.json) 配置。升级应用版本只需修改其中的 `version`，再执行 `go tool mygo build`；安装包、可执行文件元数据、「关于」页，以及下载和代理测试请求的 User-Agent 会使用同一版本号。`go tool mygo dev` 也会注入该版本；直接 `go run .` 或 `go build` 未注入版本时使用 `dev`。
 
 | 平台 | 主要产物 |
 | --- | --- |
@@ -137,6 +137,7 @@ internal/app/
   style.go / icons.go / format.go  主题、图标与显示格式化
   *_test.go / testdata/          应用交互测试与生成的视觉快照
 internal/download/              下载队列、Range 续传、重试、文件名与任务记录
+internal/appinfo/               版本标识与 User-Agent 格式
 internal/proxy/                 代理配置、系统代理探测、HTTP/SOCKS5 传输
 internal/settings/              设置类型
 internal/store/                 设置与任务记录的 JSON 持久化

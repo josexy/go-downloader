@@ -13,10 +13,9 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
-)
 
-// UserAgent identifies the app to servers.
-const UserAgent = "Downloader/0.1.0 (MyGo)"
+	"go-downloader/internal/appinfo"
+)
 
 var (
 	errRestart = errors.New("restart from the beginning")
@@ -94,7 +93,7 @@ func (m *Manager) fetch(ctx context.Context, t *task, client *http.Client) error
 	if err != nil {
 		return err
 	}
-	req.Header.Set("User-Agent", UserAgent)
+	req.Header.Set("User-Agent", appinfo.UserAgent(m.opts.AppVersion))
 	req.Header.Set("Accept-Encoding", "identity")
 	if user != "" {
 		req.SetBasicAuth(user, pass)

@@ -16,6 +16,8 @@ import (
 	"unicode"
 
 	xproxy "golang.org/x/net/proxy"
+
+	"go-downloader/internal/appinfo"
 )
 
 // Mode is how downloads reach the network.
@@ -444,7 +446,7 @@ func NewClient(c Config, sys *System) (*http.Client, error) {
 }
 
 // Check makes a small request through c and reports how long it took.
-func Check(ctx context.Context, c Config, sys *System, target string) (time.Duration, error) {
+func Check(ctx context.Context, c Config, sys *System, target, appVersion string) (time.Duration, error) {
 	client, err := NewClient(c, sys)
 	if err != nil {
 		return 0, err
@@ -458,7 +460,7 @@ func Check(ctx context.Context, c Config, sys *System, target string) (time.Dura
 	}
 	req.Header.Set("Range", "bytes=0-0")
 	req.Header.Set("Accept-Encoding", "identity")
-	req.Header.Set("User-Agent", userAgent)
+	req.Header.Set("User-Agent", appinfo.UserAgent(appVersion))
 	start := time.Now()
 	resp, err := client.Do(req)
 	elapsed := time.Since(start)
@@ -541,9 +543,3 @@ func MatchesBypass(host, bypass string) bool {
 	}
 	return false
 }
-
-// UserAgent identifies the app to servers.
-const userAgent = "Downloader/0.1.0 (MyGo)"
-
-// UserAgent returns the request User-Agent.
-func UserAgent() string { return userAgent }

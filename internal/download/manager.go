@@ -17,6 +17,8 @@ import (
 type Options struct {
 	// Dir is where new downloads are saved.
 	Dir string
+	// AppVersion identifies the app in requests (default dev).
+	AppVersion string
 	// MaxConcurrent is how many downloads run at once (default 3).
 	MaxConcurrent int
 	// AutoStart starts downloads as they are added.

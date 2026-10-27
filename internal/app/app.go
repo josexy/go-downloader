@@ -184,6 +184,7 @@ func (a *app) load() {
 	}
 	a.engine = download.New(download.Options{
 		Dir:           a.s.DownloadDir,
+		AppVersion:    a.deps.version,
 		MaxConcurrent: a.s.MaxConcurrent,
 		AutoStart:     a.s.AutoStart,
 		ClientFactory: a.clientSnapshot,

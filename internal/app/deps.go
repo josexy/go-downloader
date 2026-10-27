@@ -6,6 +6,7 @@ import (
 
 	"github.com/egoist/mygo"
 
+	"go-downloader/internal/appinfo"
 	"go-downloader/internal/proxy"
 	"go-downloader/internal/settings"
 	"go-downloader/internal/store"
@@ -35,10 +36,7 @@ type deps struct {
 
 // realDeps wires the app to MyGo and the operating system.
 func realDeps() deps {
-	version := mygo.App.Version()
-	if version == "" {
-		version = "0.1.0"
-	}
+	version := appinfo.NormalizeVersion(mygo.App.Version())
 	return deps{
 		version: version,
 		secrets: mygoSecrets{},
@@ -77,7 +75,7 @@ func realDeps() deps {
 			return proxy.Detect(ctx)
 		},
 		testProxy: func(ctx context.Context, cfg proxy.Config, sys *proxy.System, target string) (time.Duration, error) {
-			return proxy.Check(ctx, cfg, sys, target)
+			return proxy.Check(ctx, cfg, sys, target, version)
 		},
 		applyTheme: func(theme settings.Theme) {
 			mygo.Theme.SetSource(themeSource(theme))
