@@ -304,9 +304,7 @@ func (a *app) settingsAppearance(c *ui.Context) {
 func (a *app) settingsAbout(c *ui.Context) {
 	p := a.palette
 	ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
-		logo := ui.Box(c).Size(52, 52).Radius(15).Background(p.Accent)
-		logo.Center()
-		logo.Children(func() { ui.Icon(c, icoDownload).FontSize(24).TextColor(p.OnAccent) })
+		appLogo(c, 52)
 		ui.Column(c).Gap(2).Children(func() {
 			ui.Text(c, "下载器").FontSize(17).Bold()
 			ui.Text(c, "版本 "+a.deps.version).FontSize(13).TextColor(p.Muted)

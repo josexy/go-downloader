@@ -1,6 +1,25 @@
 package app
 
-import "github.com/egoist/mygo/ui"
+import (
+	"fmt"
+
+	"github.com/egoist/mygo/ui"
+
+	"go-downloader/resources"
+)
+
+// Decode the shared packaging asset once, rather than on each view build.
+var appIcon = func() *ui.Bitmap {
+	icon, err := ui.DecodeBitmap(resources.IconPNG)
+	if err != nil {
+		panic(fmt.Errorf("decode embedded app icon: %w", err))
+	}
+	return icon
+}()
+
+func appLogo(c *ui.Context, size float32) {
+	ui.Image(c, appIcon).Size(size, size).Shrink(0).Label("下载器图标")
+}
 
 // svgIcon builds a 24×24 stroke icon from its shapes, in the color of the text
 // that contains it.

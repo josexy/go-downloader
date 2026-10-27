@@ -71,11 +71,7 @@ func (a *app) header(c *ui.Context, summary download.Summary) {
 	p := a.palette
 	ui.Row(c).Height(titleBarHeight).FillWidth().Background(p.Card).DragWindow().Children(func() {
 		ui.Row(c).Grow(1).Padding(0, 20).Gap(12).AlignItems(ui.Center).Children(func() {
-			logo := ui.Box(c).Size(36, 36).Radius(10).Background(p.Accent)
-			logo.Center()
-			logo.Children(func() {
-				ui.Icon(c, icoDownload).FontSize(18).TextColor(p.OnAccent)
-			})
+			appLogo(c, 36)
 			ui.Column(c).Gap(3).Children(func() {
 				ui.Text(c, "下载器").FontSize(17).Bold()
 				ui.Text(c, headerSubtitle(summary)).FontSize(12).TextColor(p.Muted)

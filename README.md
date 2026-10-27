@@ -192,7 +192,7 @@ DOWNLOADER_SNAPSHOT=1 go test -run '^TestSnapshots$' -count=1 ./internal/app
 
 代码组织、MyGo UI 生命周期、下载与数据约束、测试和交付要求见 [AGENTS.md](AGENTS.md)。UI 相关开发还应参考仓库中的 [mygo-maintenance 技能](.agents/skills/mygo-maintenance/SKILL.md)。
 
-应用图标由 `scripts/make-icon.py` 生成，脚本需要 Pillow 与 NumPy；这些依赖仅用于图标生成，应用运行不需要 Python。
+应用图标由 `scripts/make-icon.py` 生成，采用与界面强调色一致的钴蓝色圆角底、白色线条下载箭头与接收托盘。脚本只需 Pillow，该依赖仅用于图标生成，应用运行不需要 Python。打包图标、标题栏和「关于」页统一使用 `resources/icon.png`，界面直接嵌入该资源，两套主题下保持同一图标。修改或重新生成图标后，需要重新构建应用。
 
 ## 已知限制
 

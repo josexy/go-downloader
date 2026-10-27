@@ -3,6 +3,7 @@
   "slug": "downloader",
   "identifier": "com.example.downloader",
   "version": "0.1.0",
+  "icon": "resources/icon.png",
   "out": "build",
   "windows": {
     "displayName": "下载器"

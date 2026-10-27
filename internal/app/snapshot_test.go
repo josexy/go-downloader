@@ -205,6 +205,25 @@ func TestSnapshots(t *testing.T) {
 		save(name+"-confirm.png", tt)
 		a.confirm.open = false
 	}
+
+	// Review the shared app icon in the header and About page at 125% on
+	// the minimum supported window, where its bitmap must stay crisp.
+	tt.SetScale(1.25)
+	a.setView(settings.ViewList)
+	for _, dark := range []bool{false, true} {
+		name := "light"
+		if dark {
+			name = "dark"
+		}
+		tt.SetDark(dark)
+		tt.Frame()
+		save(name+"-compact-125-list.png", tt)
+		a.settingsOpen = true
+		a.settingsTab = 3
+		tt.Frame()
+		save(name+"-compact-125-about.png", tt)
+		a.settingsOpen = false
+	}
 }
 
 // sampleItems is a mix of states for the snapshots.
