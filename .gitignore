@@ -1,0 +1,7 @@
+# Builds and development bundles
+/build/
+/.mygo/
+mygo_windows_*.syso
+
+# Generated visual snapshots
+/testdata/snapshots/
