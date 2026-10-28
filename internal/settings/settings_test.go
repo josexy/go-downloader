@@ -27,6 +27,7 @@ func TestNormalize(t *testing.T) {
 		View:          "mosaic",
 		Sort:          "random",
 		MaxConcurrent: 99,
+		RateLimit:     -10,
 		Proxy:         proxy.Config{},
 		DownloadDir:   "  ",
 	}
@@ -36,6 +37,9 @@ func TestNormalize(t *testing.T) {
 	}
 	if s.MaxConcurrent != 8 {
 		t.Errorf("MaxConcurrent = %d", s.MaxConcurrent)
+	}
+	if s.RateLimit != 0 {
+		t.Errorf("negative rate limit = %d", s.RateLimit)
 	}
 	if s.DownloadDir != fallback {
 		t.Errorf("DownloadDir = %q", s.DownloadDir)

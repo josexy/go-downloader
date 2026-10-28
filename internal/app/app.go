@@ -38,6 +38,7 @@ const proxyTestURL = "https://example.com/"
 // replace it with a fake.
 type downloader interface {
 	Add(raw string) (added int, skipped int, invalid []string)
+	AddTask(download.AddOptions) (string, error)
 	Pause(id string)
 	Resume(id string)
 	Retry(id string)
@@ -49,6 +50,7 @@ type downloader interface {
 	SetDir(dir string)
 	SetMaxConcurrent(n int)
 	SetAutoStart(on bool)
+	SetRateLimit(bytesPerSecond int64)
 	RefreshFiles()
 	Snapshot() ([]download.Item, download.Summary)
 	Records() []download.Record
@@ -74,6 +76,7 @@ type app struct {
 	viewIdx        int
 	sortLabel      string
 	maxLabel       string
+	rateKiB        float64
 	settingsTab    int
 	proxyModeIdx   int
 	proxyKindLabel string
@@ -102,6 +105,10 @@ type app struct {
 	systemErr        string
 	systemRefreshing bool
 	confirm          confirmState
+	advanced         advancedState
+	advancedWasOpen  bool
+	detailsID        string
+	detailsOpen      bool
 	toasts           []string
 	now              time.Time
 	canNotify        bool
@@ -187,6 +194,7 @@ func (a *app) load() {
 		AppVersion:    a.deps.version,
 		MaxConcurrent: a.s.MaxConcurrent,
 		AutoStart:     a.s.AutoStart,
+		RateLimit:     a.s.RateLimit,
 		ClientFactory: a.clientSnapshot,
 		OnChange:      a.onEngineChange,
 		OnComplete:    a.onEngineComplete,

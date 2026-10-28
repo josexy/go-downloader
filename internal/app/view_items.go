@@ -141,6 +141,8 @@ func (a *app) itemButtons(c *ui.Context, it download.Item) {
 	label, icon := primaryAction(it)
 	iconButton(c, p, label+" "+it.FileName, icon, false,
 		func() { a.primaryAction(it) })
+	iconButton(c, p, "任务详情 "+it.FileName, icoInfo, false,
+		func() { a.openDetails(it.ID) })
 	iconButton(c, p, "在文件夹中显示 "+it.FileName, icoFolderOpen,
 		it.State != download.StateCompleted || it.Missing,
 		func() { a.revealItem(it) })
@@ -151,6 +153,9 @@ func (a *app) itemButtons(c *ui.Context, it download.Item) {
 // itemMenu is the right-click menu of a download.
 func (a *app) itemMenu(c *ui.Context, m *ui.Menu, it download.Item) {
 	done := it.State == download.StateCompleted && !it.Missing
+	if m.Item("任务详情").Chosen() {
+		a.openDetails(it.ID)
+	}
 	if m.Item("打开").Disabled(!done).Chosen() {
 		a.openItem(it)
 	}

@@ -65,6 +65,7 @@ func TestSettingsRoundTrip(t *testing.T) {
 	want.Theme = settings.ThemeDark
 	want.View = settings.ViewCards
 	want.MaxConcurrent = 5
+	want.RateLimit = 2048 * 1024
 	want.Proxy = proxy.Config{Mode: proxy.ModeManual, Kind: proxy.KindSOCKS5, Host: "127.0.0.1", Port: 1080, Password: "do-not-save"}
 	if err := s.SaveSettings(want); err != nil {
 		t.Fatal(err)
@@ -85,6 +86,9 @@ func TestSettingsRoundTrip(t *testing.T) {
 	}
 	if got.Theme != settings.ThemeDark || got.View != settings.ViewCards || got.MaxConcurrent != 5 {
 		t.Errorf("settings = %+v", got)
+	}
+	if got.RateLimit != want.RateLimit {
+		t.Errorf("rate limit = %d, want %d", got.RateLimit, want.RateLimit)
 	}
 	if got.Proxy.Mode != proxy.ModeManual || got.Proxy.Port != 1080 {
 		t.Errorf("proxy = %+v", got.Proxy)

@@ -224,6 +224,42 @@ func TestSnapshots(t *testing.T) {
 		save(name+"-compact-125-about.png", tt)
 		a.settingsOpen = false
 	}
+
+	// First-phase dialogs and the bandwidth setting at minimum size and 125%.
+	features := newTestApp(t, &fakeEngine{items: sampleItems()})
+	features.s.DownloadDir = a.s.DownloadDir
+	featureTester := testerFor(features)
+	featureTester.SetSize(960, 640)
+	featureTester.SetScale(1.25)
+	for _, dark := range []bool{false, true} {
+		name := "light"
+		if dark {
+			name = "dark"
+		}
+		featureTester.SetDark(dark)
+		features.openAdvanced()
+		features.advanced.url = "https://example.com/download/archive.zip"
+		features.advanced.fileName = "项目资料.zip"
+		featureTester.Frame()
+		save(name+"-compact-125-advanced.png", featureTester)
+		featureTester.Wheel(600, 370, 0, 420)
+		featureTester.Advance(500 * time.Millisecond)
+		save(name+"-compact-125-advanced-headers.png", featureTester)
+		features.clearAdvanced()
+		features.openDetails("d1")
+		featureTester.Frame()
+		save(name+"-compact-125-details.png", featureTester)
+		features.openDetails("d3")
+		featureTester.Frame()
+		featureTester.Wheel(600, 370, 0, 500)
+		featureTester.Advance(500 * time.Millisecond)
+		save(name+"-compact-125-details-error.png", featureTester)
+		features.detailsOpen = false
+		features.openSettings(0)
+		featureTester.Frame()
+		save(name+"-compact-125-rate-limit.png", featureTester)
+		features.settingsOpen = false
+	}
 }
 
 // sampleItems is a mix of states for the snapshots.

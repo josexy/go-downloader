@@ -51,6 +51,7 @@ func (a *app) syncFields() {
 	}
 	a.sortLabel = sortLabelFor(a.s.Sort)
 	a.maxLabel = numberLabel(a.s.MaxConcurrent)
+	a.rateKiB = float64(a.s.RateLimit) / 1024
 	a.proxyModeIdx = proxyModeIndex(a.s.Proxy.Mode)
 	a.proxyKindLabel = proxyKindLabel(a.s.Proxy.Kind)
 	a.syncProxyDraft()
@@ -158,6 +159,14 @@ func (a *app) setMaxConcurrent(n int) {
 	a.s.MaxConcurrent = n
 	a.maxLabel = numberLabel(n)
 	a.engine.SetMaxConcurrent(n)
+	a.saveSettings()
+}
+
+// setRateLimit applies a live total bandwidth limit, expressed in KiB/s.
+func (a *app) setRateLimit() {
+	a.s.RateLimit = int64(a.rateKiB) * 1024
+	a.s.RateLimit = max(0, min(a.s.RateLimit, 1024*1024*1024))
+	a.engine.SetRateLimit(a.s.RateLimit)
 	a.saveSettings()
 }
 

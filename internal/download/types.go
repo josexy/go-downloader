@@ -46,8 +46,14 @@ type Item struct {
 	Error string
 	// Attempt is the retry number of the current failure.
 	Attempt int
-	// Resumable reports whether the server accepts ranges.
+	// RetryCount includes automatic retries across attempts and restarts.
+	RetryCount int
+	// Resumable reports whether the response supports ranges with a usable validator.
 	Resumable bool
+	// ResumableKnown distinguishes a response from an unconnected task.
+	ResumableKnown bool
+	// NeedsHeaders asks the user to re-enter headers lost after a restart.
+	NeedsHeaders bool
 	// Missing reports a completed download whose file is gone.
 	Missing    bool
 	CreatedAt  time.Time
@@ -81,16 +87,20 @@ type Summary struct {
 
 // Record is how a download is saved and restored.
 type Record struct {
-	ID           string    `json:"id"`
-	URL          string    `json:"url"`
-	FileName     string    `json:"fileName"`
-	Path         string    `json:"path"`
-	State        State     `json:"state"`
-	Total        int64     `json:"total"`
-	Done         int64     `json:"done"`
-	ETag         string    `json:"etag,omitempty"`
-	LastModified string    `json:"lastModified,omitempty"`
-	Resumable    bool      `json:"resumable"`
-	CreatedAt    time.Time `json:"createdAt"`
-	FinishedAt   time.Time `json:"finishedAt,omitempty"`
+	ID              string    `json:"id"`
+	URL             string    `json:"url"`
+	FileName        string    `json:"fileName"`
+	Path            string    `json:"path"`
+	State           State     `json:"state"`
+	Total           int64     `json:"total"`
+	Done            int64     `json:"done"`
+	ETag            string    `json:"etag,omitempty"`
+	LastModified    string    `json:"lastModified,omitempty"`
+	Resumable       bool      `json:"resumable"`
+	ResumableKnown  bool      `json:"resumableKnown,omitempty"`
+	CustomName      bool      `json:"customName,omitempty"`
+	HeadersRequired bool      `json:"headersRequired,omitempty"`
+	RetryCount      int       `json:"retryCount,omitempty"`
+	CreatedAt       time.Time `json:"createdAt"`
+	FinishedAt      time.Time `json:"finishedAt,omitempty"`
 }

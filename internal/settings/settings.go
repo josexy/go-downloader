@@ -44,6 +44,7 @@ type Settings struct {
 	Sort             SortKey      `json:"sort"`
 	Proxy            proxy.Config `json:"proxy"`
 	MaxConcurrent    int          `json:"maxConcurrent"`
+	RateLimit        int64        `json:"rateLimit,omitempty"`
 	NotifyOnComplete bool         `json:"notifyOnComplete"`
 	AutoStart        bool         `json:"autoStart"`
 }
@@ -89,6 +90,7 @@ func (s *Settings) Normalize(defaultDir string) {
 	if s.MaxConcurrent > 8 {
 		s.MaxConcurrent = 8
 	}
+	s.RateLimit = max(0, min(s.RateLimit, 1024*1024*1024))
 	s.Proxy.Normalize()
 	s.DownloadDir = strings.TrimSpace(s.DownloadDir)
 	if s.DownloadDir == "" {

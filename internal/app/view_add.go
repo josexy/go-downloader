@@ -25,6 +25,7 @@ func (a *app) addCard(c *ui.Context) {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, linkHint(a.input)).FontSize(12).TextColor(p.Muted).Grow(1)
 			ui.Text(c, "Ctrl+Enter 添加").FontSize(11).TextColor(p.Muted)
+			smallButton(c, "高级新建").OnClick(a.openAdvanced)
 			if smallButton(c, "粘贴").Clicked() {
 				a.pasteClipboard(c)
 			}

@@ -26,15 +26,16 @@ var testNow = time.Date(2026, 10, 27, 9, 0, 0, 0, time.UTC)
 
 // fakeEngine is an in-memory downloader for the view tests.
 type fakeEngine struct {
-	mu         sync.Mutex
-	items      []download.Item
-	calls      []string
-	nextID     int
-	dir        string
-	max        int
-	auto       bool
-	onChange   func()
-	onComplete func(download.Item)
+	mu              sync.Mutex
+	items           []download.Item
+	calls           []string
+	nextID          int
+	dir             string
+	max             int
+	auto            bool
+	onChange        func()
+	onComplete      func(download.Item)
+	advancedOptions []download.AddOptions
 }
 
 func (f *fakeEngine) record(call string) {
@@ -102,6 +103,32 @@ func (f *fakeEngine) setState(id string, state download.State) {
 			return
 		}
 	}
+}
+
+func (f *fakeEngine) AddTask(opts download.AddOptions) (string, error) {
+	added, _, invalid := f.Add(opts.URL)
+	if added == 0 || len(invalid) > 0 {
+		return "", fmt.Errorf("链接无效或已存在")
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.advancedOptions = append(f.advancedOptions, opts)
+	it := &f.items[len(f.items)-1]
+	dir := opts.Dir
+	if dir == "" {
+		dir = f.dir
+	}
+	if opts.FileName != "" {
+		it.FileName = opts.FileName
+	}
+	it.Path = filepath.Join(dir, it.FileName)
+	return it.ID, nil
+}
+
+func (f *fakeEngine) SetRateLimit(rate int64) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.record(fmt.Sprintf("SetRateLimit:%d", rate))
 }
 
 func (f *fakeEngine) Pause(id string) {

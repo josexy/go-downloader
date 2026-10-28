@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -64,7 +65,11 @@ func (m *Manager) fetch(ctx context.Context, t *task, client *http.Client) error
 	}
 	etag, lastModified := t.etag, t.lastModified
 	user, pass := t.user, t.pass
+	headers := t.headers.Clone()
 	m.mu.Unlock()
+	if cur.NeedsHeaders {
+		return fmt.Errorf("此任务需要请求头，请通过「高级新建」重新填写同一链接和请求头")
+	}
 
 	path := cur.Path
 	partPath := path + ".part"
@@ -93,9 +98,14 @@ func (m *Manager) fetch(ctx context.Context, t *task, client *http.Client) error
 	if err != nil {
 		return err
 	}
-	req.Header.Set("User-Agent", appinfo.UserAgent(m.opts.AppVersion))
+	if headers != nil {
+		req.Header = headers.Clone()
+	}
+	if req.Header.Get("User-Agent") == "" {
+		req.Header.Set("User-Agent", appinfo.UserAgent(m.opts.AppVersion))
+	}
 	req.Header.Set("Accept-Encoding", "identity")
-	if user != "" {
+	if user != "" && req.Header.Get("Authorization") == "" {
 		req.SetBasicAuth(user, pass)
 	}
 	if resume {
@@ -110,7 +120,8 @@ func (m *Manager) fetch(ctx context.Context, t *task, client *http.Client) error
 	})
 	defer timer.Stop()
 
-	resp, err := client.Do(req)
+	resp, err := requestClient(client, headers).Do(req)
+	timer.Stop()
 	if err != nil {
 		if stalled.Load() {
 			return errStalled
@@ -121,7 +132,9 @@ func (m *Manager) fetch(ctx context.Context, t *task, client *http.Client) error
 		return err
 	}
 	defer resp.Body.Close()
-	timer.Reset(m.stall)
+	if stalled.Load() {
+		return errStalled
+	}
 
 	code := resp.StatusCode
 	var total int64 = -1
@@ -187,6 +200,7 @@ func (m *Manager) fetch(ctx context.Context, t *task, client *http.Client) error
 	}
 	resumable := code == http.StatusPartialContent ||
 		strings.Contains(strings.ToLower(resp.Header.Get("Accept-Ranges")), "bytes")
+	resumable = resumable && ifRange(etag, lastModified) != ""
 
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return fmt.Errorf("无法创建下载文件夹：%w", err)
@@ -216,9 +230,19 @@ func (m *Manager) fetch(ctx context.Context, t *task, client *http.Client) error
 		return fmt.Errorf("无法写入文件：%w", err)
 	}
 
-	buf := make([]byte, 64*1024)
+	buf := make([]byte, 16*1024)
 	for {
-		n, readErr := resp.Body.Read(buf)
+		allowed, limitErr := m.bandwidth.take(ctx, len(buf))
+		if limitErr != nil {
+			file.Close()
+			return limitErr
+		}
+		// Only network time counts toward the stall timeout. Throttling and
+		// disk writes can take longer without making a healthy request fail.
+		timer.Reset(m.stall)
+		n, readErr := resp.Body.Read(buf[:allowed])
+		timer.Stop()
+		m.bandwidth.refund(allowed - n)
 		if n > 0 {
 			if _, writeErr := file.Write(buf[:n]); writeErr != nil {
 				file.Close()
@@ -226,7 +250,6 @@ func (m *Manager) fetch(ctx context.Context, t *task, client *http.Client) error
 			}
 			done += int64(n)
 			m.advance(t, int64(n), total)
-			timer.Reset(m.stall)
 		}
 		if readErr == io.EOF {
 			break
@@ -280,6 +303,9 @@ func (m *Manager) adoptName(t *task, resp *http.Response) {
 	if t.removed || name == t.item.FileName {
 		return
 	}
+	if t.customName {
+		return
+	}
 	dir := filepath.Dir(t.item.Path)
 	unreservePath(m.reserved, t.item.Path)
 	p := uniquePath(dir, name, m.reserved)
@@ -296,6 +322,7 @@ func (m *Manager) beginTransfer(t *task, total, done int64, etag, lastModified s
 	t.item.Error = ""
 	t.item.Attempt = 0
 	t.item.Resumable = resumable
+	t.item.ResumableKnown = true
 	t.item.Speed = 0
 	t.item.ETA = 0
 	t.etag, t.lastModified = etag, lastModified
@@ -370,7 +397,6 @@ func (m *Manager) finalize(t *task, partPath, metaPath string, done, total int64
 	t.item.ETA = 0
 	t.item.Error = ""
 	t.item.Attempt = 0
-	t.item.Resumable = true
 	t.item.Missing = false
 	t.item.FinishedAt = timeNow()
 	item := t.item
@@ -485,6 +511,10 @@ func retryable(err error) bool {
 }
 
 func errorText(err error) string {
+	var requestErr *url.Error
+	if errors.As(err, &requestErr) {
+		return "网络错误：" + requestErr.Op + " " + DiagnosticURL(requestErr.URL) + "：" + errorText(requestErr.Err)
+	}
 	switch {
 	case errors.Is(err, errStalled):
 		return "下载超时：服务器长时间没有发送数据"

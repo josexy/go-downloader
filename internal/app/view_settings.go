@@ -64,7 +64,7 @@ func (a *app) settingsContentHeight(windowHeight float32) float32 {
 	case 3:
 		return min(190, limit)
 	default:
-		return min(338, limit)
+		return min(412, limit)
 	}
 }
 
@@ -144,6 +144,14 @@ func (a *app) settingsGeneral(c *ui.Context) {
 		if ui.Switch(c, &a.s.NotifyOnComplete).Label("下载完成后通知").Changed() {
 			a.saveSettings()
 		}
+	})
+	a.settingsRow(c, icoZap, "全局限速", "所有任务共享；0 表示不限速。", func() {
+		ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+			c.Key("global-rate-limit")
+			ui.NumberInput(c, &a.rateKiB, 0, 1048576, 1).Width(180).
+				Label("全局限速 KB/s").OnChange(a.setRateLimit)
+			ui.Text(c, "KB/s").FontSize(12).TextColor(p.Muted).Shrink(0)
+		})
 	})
 	a.settingsRow(c, icoPlay, "添加后自动开始",
 		"关闭后，新下载会以暂停状态加入，点击继续或全部继续才会开始。", func() {

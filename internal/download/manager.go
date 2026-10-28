@@ -23,6 +23,8 @@ type Options struct {
 	MaxConcurrent int
 	// AutoStart starts downloads as they are added.
 	AutoStart bool
+	// RateLimit is the total bytes per second across all tasks (0: unlimited).
+	RateLimit int64
 	// ClientFactory returns the HTTP client for a new connection. It is
 	// called on worker goroutines and may change with the proxy settings.
 	ClientFactory func() (*http.Client, error)
@@ -51,11 +53,14 @@ type Manager struct {
 	wg       sync.WaitGroup
 
 	lastNotify atomic.Int64
+	bandwidth  bandwidth
 }
 
 type task struct {
 	item       Item
 	user, pass string
+	headers    http.Header
+	customName bool
 
 	ctx     context.Context
 	cancel  context.CancelFunc
@@ -84,7 +89,7 @@ func New(opts Options) *Manager {
 	if opts.ClientFactory == nil {
 		opts.ClientFactory = func() (*http.Client, error) { return &http.Client{}, nil }
 	}
-	return &Manager{
+	m := &Manager{
 		opts:     opts,
 		dir:      opts.Dir,
 		max:      opts.MaxConcurrent,
@@ -93,6 +98,8 @@ func New(opts Options) *Manager {
 		byID:     map[string]*task{},
 		reserved: map[string]bool{},
 	}
+	m.bandwidth.set(opts.RateLimit)
+	return m
 }
 
 // SetOnChange replaces the change callback, which lets the app attach the
@@ -226,6 +233,7 @@ func (m *Manager) request(id string) {
 		t.item.Error = ""
 		t.item.Attempt = 0
 		t.item.Missing = false
+		t.item.FinishedAt = time.Time{}
 	case StateCompleted:
 		if !t.item.Missing {
 			m.mu.Unlock()
@@ -478,18 +486,22 @@ func (m *Manager) Records() []Record {
 			state = StatePaused
 		}
 		out = append(out, Record{
-			ID:           t.item.ID,
-			URL:          t.item.URL,
-			FileName:     t.item.FileName,
-			Path:         t.item.Path,
-			State:        state,
-			Total:        t.item.Total,
-			Done:         t.item.Done,
-			ETag:         t.etag,
-			LastModified: t.lastModified,
-			Resumable:    t.item.Resumable,
-			CreatedAt:    t.item.CreatedAt,
-			FinishedAt:   t.item.FinishedAt,
+			ID:              t.item.ID,
+			URL:             t.item.URL,
+			FileName:        t.item.FileName,
+			Path:            t.item.Path,
+			State:           state,
+			Total:           t.item.Total,
+			Done:            t.item.Done,
+			ETag:            t.etag,
+			LastModified:    t.lastModified,
+			Resumable:       t.item.Resumable,
+			ResumableKnown:  t.item.ResumableKnown,
+			CustomName:      t.customName,
+			HeadersRequired: len(t.headers) > 0 || t.item.NeedsHeaders,
+			RetryCount:      t.item.RetryCount,
+			CreatedAt:       t.item.CreatedAt,
+			FinishedAt:      t.item.FinishedAt,
 		})
 	}
 	return out
@@ -512,20 +524,23 @@ func (m *Manager) Restore(records []Record) {
 			name = r.FileName
 		}
 		item := Item{
-			ID:         r.ID,
-			URL:        r.URL,
-			DisplayURL: r.URL,
-			FileName:   name,
-			Path:       r.Path,
-			State:      StatePaused,
-			Total:      r.Total,
-			Done:       r.Done,
-			CreatedAt:  r.CreatedAt,
-			FinishedAt: r.FinishedAt,
-			Resumable:  r.Resumable,
-			Missing:    false,
+			ID:             r.ID,
+			URL:            r.URL,
+			DisplayURL:     r.URL,
+			FileName:       name,
+			Path:           r.Path,
+			State:          StatePaused,
+			Total:          r.Total,
+			Done:           r.Done,
+			CreatedAt:      r.CreatedAt,
+			FinishedAt:     r.FinishedAt,
+			Resumable:      r.Resumable,
+			ResumableKnown: r.ResumableKnown || r.Resumable,
+			NeedsHeaders:   r.HeadersRequired,
+			RetryCount:     r.RetryCount,
+			Missing:        false,
 		}
-		t := &task{item: item, etag: r.ETag, lastModified: r.LastModified}
+		t := &task{item: item, etag: r.ETag, lastModified: r.LastModified, customName: r.CustomName}
 		meta := readPartMeta(r.Path + ".part.meta")
 		if t.etag == "" {
 			t.etag = meta.ETag
@@ -600,6 +615,7 @@ func (m *Manager) kick() {
 		next.working = true
 		next.item.State = StateConnecting
 		next.item.Error = ""
+		next.item.FinishedAt = time.Time{}
 		next.item.Attempt = 0
 		ctx, cancel := context.WithCancel(context.Background())
 		next.ctx, next.cancel = ctx, cancel
@@ -662,7 +678,7 @@ func (m *Manager) fail(t *task, err error) {
 		return
 	}
 	t.item.State = StateFailed
-	t.item.Error = errorText(err)
+	t.item.Error = taskError(t, err)
 	t.item.Speed = 0
 	t.item.ETA = 0
 	t.item.FinishedAt = timeNow()
@@ -714,7 +730,8 @@ func (m *Manager) setRetrying(t *task, attempt int, err error) {
 	m.mu.Lock()
 	t.item.State = StateConnecting
 	t.item.Attempt = attempt
-	t.item.Error = fmt.Sprintf("正在重试（%d/%d）：%s", attempt, 2, errorText(err))
+	t.item.RetryCount++
+	t.item.Error = fmt.Sprintf("正在重试（%d/%d）：%s", attempt, 2, taskError(t, err))
 	t.item.Speed = 0
 	t.item.ETA = 0
 	m.mu.Unlock()
